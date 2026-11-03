@@ -21,6 +21,12 @@ public sealed class Camera : IAsyncDisposable
 
     public string Name => Setting.DisplayName;
 
+    // Why the camera or its saving does not work now (the last state while nobody uses the camera)
+    public string? ErrorMessage =>
+        Channel.State == CameraState.Failed
+            ? Channel.ErrorMessage ?? "Camera failed."
+            : Snapshot?.FolderError ?? Snapshot?.ErrorMessage;
+
     public Camera(CameraDeviceSetting setting, CameraChannel channel, JpegPublisher jpeg, string folder, SnapshotWriter? snapshot)
     {
         Setting = setting;

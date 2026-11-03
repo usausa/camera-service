@@ -15,20 +15,38 @@ public static class SnapshotStorage
     public static string GetCameraFolder(string baseFolder, string storagePath, string cameraPath, string cameraId) =>
         Path.GetFullPath(cameraPath.Length > 0 ? cameraPath : cameraId, Path.GetFullPath(storagePath, baseFolder));
 
-    public static string GetDateFolderName(DateTime time) => time.ToString(DateFormat, CultureInfo.InvariantCulture);
+    public static string GetDateFolderName(DateTime time) => FormatDate(DateOnly.FromDateTime(time));
 
-    public static string GetFileName(DateTime time) => time.ToString(TimeFormat, CultureInfo.InvariantCulture) + Extension;
+    public static string GetFileName(DateTime time) => FormatTime(TimeOnly.FromDateTime(time)) + Extension;
+
+    public static string GetImagePath(string cameraFolder, DateOnly date, TimeOnly time) => Path.Combine(cameraFolder, FormatDate(date), FormatTime(time) + Extension);
+
+    public static string FormatDate(DateOnly date) => date.ToString(DateFormat, CultureInfo.InvariantCulture);
+
+    public static string FormatTime(TimeOnly time) => time.ToString(TimeFormat, CultureInfo.InvariantCulture);
 
     // 8 digits of a valid date
-    public static bool TryParseDateFolderName(string name, out DateOnly date)
+    public static bool TryParseDate(string value, out DateOnly date)
     {
-        if ((name.Length != DateFormat.Length) || name.AsSpan().ContainsAnyExceptInRange('0', '9'))
+        if ((value.Length != DateFormat.Length) || value.AsSpan().ContainsAnyExceptInRange('0', '9'))
         {
             date = default;
             return false;
         }
 
-        return DateOnly.TryParseExact(name, DateFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out date);
+        return DateOnly.TryParseExact(value, DateFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out date);
+    }
+
+    // 6 digits of a valid time
+    public static bool TryParseTime(string value, out TimeOnly time)
+    {
+        if ((value.Length != TimeFormat.Length) || value.AsSpan().ContainsAnyExceptInRange('0', '9'))
+        {
+            time = default;
+            return false;
+        }
+
+        return TimeOnly.TryParseExact(value, TimeFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out time);
     }
 
     // The date folders of a camera folder by date, none when the folder does not exist
@@ -42,7 +60,7 @@ public static class SnapshotStorage
 
         foreach (var path in Directory.EnumerateDirectories(cameraFolder))
         {
-            if (TryParseDateFolderName(Path.GetFileName(path), out var date))
+            if (TryParseDate(Path.GetFileName(path), out var date))
             {
                 folders.Add(new DateFolder(path, date));
             }
@@ -50,6 +68,27 @@ public static class SnapshotStorage
 
         folders.Sort(static (x, y) => x.Date.CompareTo(y.Date));
         return folders;
+    }
+
+    // The times of the images in a date folder (HHmmss.jpg), none when the folder does not exist
+    public static IReadOnlyList<TimeOnly> FindTimes(string dateFolder)
+    {
+        var times = new List<TimeOnly>();
+        if (!Directory.Exists(dateFolder))
+        {
+            return times;
+        }
+
+        foreach (var path in Directory.EnumerateFiles(dateFolder, "*" + Extension))
+        {
+            if (TryParseTime(Path.GetFileNameWithoutExtension(path), out var time))
+            {
+                times.Add(time);
+            }
+        }
+
+        times.Sort();
+        return times;
     }
 
     // Older than the days to keep (today is the first day), never when days is 0

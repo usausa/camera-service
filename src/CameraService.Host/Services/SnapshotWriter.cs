@@ -16,6 +16,10 @@ public sealed class SnapshotWriter : ISchedulerJob, IDisposable
 {
     private const string TemporaryExtension = ".tmp";
 
+    private const string ProbeFileName = "write-test.tmp";
+
+    private const double GigaBytes = 1024d * 1024 * 1024;
+
     // Includes opening the camera and the warm-up when the camera was not opened before
     private static readonly TimeSpan CaptureTimeout = TimeSpan.FromSeconds(10);
 
@@ -53,6 +57,9 @@ public sealed class SnapshotWriter : ISchedulerJob, IDisposable
 
     // Reason of the last failure, null after a save
     public string? ErrorMessage { get; private set; }
+
+    // Reason why the folder could not be written at the start, null after a save
+    public string? FolderError { get; private set; }
 
     public long SavedCount => Interlocked.Read(ref savedCount);
 
@@ -95,6 +102,29 @@ public sealed class SnapshotWriter : ISchedulerJob, IDisposable
 
     // Lets the camera close when the jobs stop
     public void ReleasePrepared() => Interlocked.Exchange(ref preparedLease, null)?.Dispose();
+
+    //--------------------------------------------------------------------------------
+    // Folder
+    //--------------------------------------------------------------------------------
+
+    // Written at the start, so that a folder that cannot be written is found in the log at once
+    public void CheckFolder()
+    {
+        try
+        {
+            Directory.CreateDirectory(Folder);
+            var probe = Path.Combine(Folder, ProbeFileName);
+            File.WriteAllBytes(probe, []);
+            File.Delete(probe);
+            FolderError = null;
+            log.InfoSnapshotFolder(Id, Folder, SnapshotStorage.GetFreeSpace(Folder) / GigaBytes);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            FolderError = ex.Message;
+            log.ErrorSnapshotFolder(ex, Id, Folder);
+        }
+    }
 
     //--------------------------------------------------------------------------------
     // Job
@@ -239,6 +269,7 @@ public sealed class SnapshotWriter : ISchedulerJob, IDisposable
         }
 
         ErrorMessage = null;
+        FolderError = null;
     }
 
     // Logged once until a save succeeds again

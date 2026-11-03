@@ -47,13 +47,75 @@ public sealed class SnapshotStorageTests
     public void OnlyDateFoldersAreParsed(string name, bool expected)
     {
         // Act
-        var result = SnapshotStorage.TryParseDateFolderName(name, out var date);
+        var result = SnapshotStorage.TryParseDate(name, out var date);
 
         // Assert
         Assert.Equal(expected, result);
         if (expected)
         {
             Assert.Equal(new DateOnly(2026, 1, 2), date);
+        }
+    }
+
+    [Theory]
+    [InlineData("030405", true)]
+    [InlineData("235959", true)]
+    [InlineData("240000", false)]
+    [InlineData("03040", false)]
+    [InlineData("0304050", false)]
+    [InlineData("03:04:", false)]
+    public void OnlyTimesAreParsed(string value, bool expected)
+    {
+        // Act
+        var result = SnapshotStorage.TryParseTime(value, out _);
+
+        // Assert
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void TimeIsParsed()
+    {
+        // Act
+        var result = SnapshotStorage.TryParseTime("030405", out var time);
+
+        // Assert
+        Assert.True(result);
+        Assert.Equal(new TimeOnly(3, 4, 5), time);
+    }
+
+    [Fact]
+    public void ImagePathHasDateAndTime()
+    {
+        // Act
+        var path = SnapshotStorage.GetImagePath(@"C:\Images\front", new DateOnly(2026, 1, 2), new TimeOnly(3, 4, 5));
+
+        // Assert
+        Assert.Equal(@"C:\Images\front\20260102\030405.jpg", path);
+    }
+
+    [Fact]
+    public void TimesAreFound()
+    {
+        // Arrange
+        var root = Path.Combine(Path.GetTempPath(), "CameraService.UnitTests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(root);
+            foreach (var name in new[] { "120000.jpg", "060000.jpg", "123456.jpg.tmp", "notes.jpg", "999999.jpg", "130000.png" })
+            {
+                File.WriteAllBytes(Path.Combine(root, name), []);
+            }
+
+            // Act
+            var times = SnapshotStorage.FindTimes(root);
+
+            // Assert (the images of a time only, oldest first)
+            Assert.Equal([new TimeOnly(6, 0), new TimeOnly(12, 0)], times);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
         }
     }
 

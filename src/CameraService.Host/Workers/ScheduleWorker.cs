@@ -13,10 +13,6 @@ public sealed class ScheduleWorker : BackgroundService
 {
     private const string RetentionJobName = "retention";
 
-    private const string ProbeFileName = "write-test.tmp";
-
-    private const double GigaBytes = 1024d * 1024 * 1024;
-
     private static readonly TimeSpan PrepareInterval = TimeSpan.FromMilliseconds(500);
 
     private readonly ILogger<ScheduleWorker> log;
@@ -55,7 +51,7 @@ public sealed class ScheduleWorker : BackgroundService
             {
                 if (camera.Snapshot is { } writer)
                 {
-                    CheckFolder(camera);
+                    writer.CheckFolder();
                     snapshots.Add((writer, scheduler.AddJob(writer.Schedule, writer, "snapshot-" + camera.Id, MisfirePolicy.Skip)));
                 }
             }
@@ -121,21 +117,4 @@ public sealed class ScheduleWorker : BackgroundService
     }
 
     private void OnJobError(object? sender, JobErrorEventArgs e) => log.ErrorJobFailed(e.Exception, e.JobName);
-
-    // Written at the start, so that a folder that cannot be written is found in the log at once
-    private void CheckFolder(Camera camera)
-    {
-        try
-        {
-            Directory.CreateDirectory(camera.Folder);
-            var probe = Path.Combine(camera.Folder, ProbeFileName);
-            File.WriteAllBytes(probe, []);
-            File.Delete(probe);
-            log.InfoSnapshotFolder(camera.Id, camera.Folder, SnapshotStorage.GetFreeSpace(camera.Folder) / GigaBytes);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            log.ErrorSnapshotFolder(ex, camera.Id, camera.Folder);
-        }
-    }
 }

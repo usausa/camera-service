@@ -1,0 +1,32 @@
+<div class="viewer-backdrop" @onclick="CloseAsync"></div>
+<div class="viewer">
+    <div class="viewer-header">
+        <div class="viewer-title">
+            <span class="viewer-time">@Texts.DateTime(Date, Current)</span>
+            <span class="viewer-position">@(index + 1) / @Times.Count</span>
+        </div>
+        <div class="viewer-actions">
+            <button type="button" class="icon-button" title="First (Home)" @onclick="() => Move(0)"><i class="bi bi-skip-start-fill"></i></button>
+            <button type="button" class="icon-button" title="Previous (←)" @onclick="() => Move(index - 1)"><i class="bi bi-chevron-left"></i></button>
+            <button type="button" class="icon-button" title="@(Playing ? "Pause (Space)" : "Play (Space)")" @onclick="TogglePlay"><i class="bi @(Playing ? "bi-pause-fill" : "bi-play-fill")"></i></button>
+            <button type="button" class="icon-button" title="Next (→)" @onclick="() => Move(index + 1)"><i class="bi bi-chevron-right"></i></button>
+            <button type="button" class="icon-button" title="Last (End)" @onclick="() => Move(Times.Count - 1)"><i class="bi bi-skip-end-fill"></i></button>
+            <select class="select" title="Time-lapse speed" value="@fps" @onchange="OnSpeedChanged">
+                @foreach (var speed in Speeds)
+                {
+                    <option value="@speed">@SpeedText(speed)</option>
+                }
+            </select>
+            <a class="icon-button" title="Download" href="@Links.Image(CameraId, Date, Current)" download="@Links.DownloadName(CameraId, Date, Current)"><i class="bi bi-download"></i></a>
+            <button type="button" class="icon-button" title="Close (Esc)" @onclick="CloseAsync"><i class="bi bi-x-lg"></i></button>
+        </div>
+    </div>
+    <div class="viewer-body">
+        <img class="viewer-image" src="@Links.Image(CameraId, Date, Current)" alt="@Texts.Time(Current)" />
+        @* The next images are loaded before they are shown *@
+        @for (var i = index + 1; i <= Math.Min(index + PreloadCount, Times.Count - 1); i++)
+        {
+            <img src="@Links.Image(CameraId, Date, Times[i])" alt="" hidden />
+        }
+    </div>
+</div>

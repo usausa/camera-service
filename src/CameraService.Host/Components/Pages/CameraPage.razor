@@ -1,0 +1,62 @@
+@page "/cameras/{Id}"
+
+<PageTitle>@(Manager.Find(Id)?.Name ?? "Not found") - Camera Service</PageTitle>
+
+@if (Manager.Find(Id) is not { } camera)
+{
+    <div class="page">
+        <div class="empty">
+            <i class="bi bi-camera-video-off"></i>
+            <p>The camera is not found.</p>
+        </div>
+    </div>
+}
+else
+{
+    <div class="page">
+        <div class="page-header">
+            <nav class="breadcrumb">
+                <a href="">Cameras</a>
+                <i class="bi bi-chevron-right"></i>
+                <span>@camera.Name</span>
+            </nav>
+            <StateBadge State="camera.Channel.State" />
+            <div class="toolbar">
+                <div class="segmented">
+                    <button type="button" class="@(live ? "active" : null)" @onclick="ShowLive"><i class="bi bi-broadcast"></i> Live</button>
+                    <button type="button" class="@(live ? null : "active")" @onclick="ShowStill"><i class="bi bi-image"></i> Still</button>
+                </div>
+                @if (!live)
+                {
+                    <button type="button" class="button" @onclick="Refresh"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+                    <select class="select" title="Refresh interval" value="@interval" @onchange="OnIntervalChanged">
+                        @foreach (var seconds in Intervals)
+                        {
+                            <option value="@seconds">@IntervalText(seconds)</option>
+                        }
+                    </select>
+                }
+                <a class="button" href="@Links.Images(camera.Id)"><i class="bi bi-images"></i> Images</a>
+            </div>
+        </div>
+
+        @if (camera.ErrorMessage is { } error)
+        {
+            <div class="alert">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                <span>@error</span>
+            </div>
+        }
+
+        <div class="screen">
+            @if (live)
+            {
+                <LiveView CameraId="@camera.Id" />
+            }
+            else
+            {
+                <img class="screen-image" src="@Links.Snapshot(camera.Id, version)" alt="@camera.Name" />
+            }
+        </div>
+    </div>
+}

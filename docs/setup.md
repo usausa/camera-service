@@ -12,7 +12,7 @@
 dotnet run --project src/CameraService.Host
 ```
 
-- ブラウザーで `http://localhost:5180` を開くと、カメラの一覧が出る(Live でライブ、Snapshot で静止画)
+- ブラウザーで `http://localhost:5180` を開くと、カメラの一覧が出る([🖥️ 画面](ui.md))
 - `/api/devices` で PC のカメラと形式が分かる(設定の `Device` / `DeviceId` に使う)
 - `/health` が `Healthy` を返す
 

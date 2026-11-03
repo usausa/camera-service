@@ -3,6 +3,7 @@ namespace CameraService.Host.Application;
 using System.Runtime.InteropServices;
 
 using CameraService.Core;
+using CameraService.Host.Application.HealthChecks;
 using CameraService.Host.Components;
 using CameraService.Host.Endpoints;
 using CameraService.Host.Services;
@@ -71,7 +72,9 @@ public static class ApplicationExtensions
 
     public static IHostApplicationBuilder ConfigureHealth(this IHostApplicationBuilder builder)
     {
-        builder.Services.AddHealthChecks();
+        builder.Services.AddHealthChecks()
+            .AddCheck<CameraHealthCheck>("cameras")
+            .AddCheck<StorageHealthCheck>("storage");
 
         return builder;
     }
@@ -103,6 +106,8 @@ public static class ApplicationExtensions
         builder.Services.AddSingleton<CameraManager>();
         builder.Services.AddHostedService(static p => p.GetRequiredService<CameraManager>());
         builder.Services.AddSingleton<ImageRetention>();
+        builder.Services.AddSingleton<ImageStore>();
+        builder.Services.AddSingleton<ThumbnailCache>();
 
         // Worker
         builder.Services.AddHostedService<ScheduleWorker>();
@@ -143,6 +148,30 @@ public static class ApplicationExtensions
     }
 
     //--------------------------------------------------------------------------------
+    // Stop
+    //--------------------------------------------------------------------------------
+
+    // Requests after the stop started are refused: a page connects again at once when its connection is closed for the stop,
+    // and the server would wait for the new connection until the shutdown timeout (30 seconds)
+    public static WebApplication UseStoppingGate(this WebApplication app)
+    {
+        var stopping = app.Lifetime.ApplicationStopping;
+        app.Use((context, next) =>
+        {
+            if (!stopping.IsCancellationRequested)
+            {
+                return next(context);
+            }
+
+            context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+            context.Response.Headers.Connection = "close";
+            return Task.CompletedTask;
+        });
+
+        return app;
+    }
+
+    //--------------------------------------------------------------------------------
     // End point
     //--------------------------------------------------------------------------------
 
@@ -154,6 +183,7 @@ public static class ApplicationExtensions
         // Camera
         app.MapStreamEndpoints();
         app.MapDeviceEndpoints();
+        app.MapImageEndpoints();
 
         return app;
     }

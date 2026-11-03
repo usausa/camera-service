@@ -11,6 +11,7 @@ public static class WindowsPlatformExtensions
     {
         services.AddSingleton<ICameraProvider, WindowsCameraProvider>();
         services.AddSingleton<IJpegEncoderFactory, JpegEncoderFactory>();
+        services.AddSingleton<IThumbnailGenerator, ThumbnailGenerator>();
         return services;
     }
 }

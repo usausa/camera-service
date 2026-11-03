@@ -1,0 +1,73 @@
+@page "/status"
+
+<PageTitle>Status - Camera Service</PageTitle>
+
+<div class="page">
+    <div class="page-header">
+        <h1 class="page-title">Status</h1>
+    </div>
+
+    <section class="panel">
+        <h2 class="panel-title"><i class="bi bi-camera-video"></i> Cameras</h2>
+        <div class="table-wrap">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Camera</th>
+                        <th>State</th>
+                        <th>Format</th>
+                        <th class="number">Capture</th>
+                        <th class="number">Stream</th>
+                        <th class="number">Clients</th>
+                        <th>Saving</th>
+                        <th>Last image</th>
+                        <th>Error</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in rows)
+                    {
+                        var camera = row.Camera;
+                        <tr>
+                            <td><a href="@Links.Camera(camera.Id)">@camera.Name</a></td>
+                            <td><StateBadge State="camera.Channel.State" /></td>
+                            <td>@camera.Channel.Format</td>
+                            <td class="number">@Texts.Rate(row.CaptureRate) fps</td>
+                            <td class="number">@Texts.Rate(row.StreamRate) fps</td>
+                            <td class="number">@camera.Jpeg.Hub.ClientCount</td>
+                            <td>@(camera.Snapshot?.Schedule ?? "Off")</td>
+                            <td>@(row.Latest is { } latest ? Texts.DateTime(latest.Date, latest.Time) : "-")</td>
+                            <td class="error-text">@camera.ErrorMessage</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="panel">
+        <h2 class="panel-title"><i class="bi bi-hdd"></i> Storage</h2>
+        <div class="table-wrap">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Camera</th>
+                        <th>Folder</th>
+                        <th class="number">Free</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in rows)
+                    {
+                        <tr>
+                            <td>@row.Camera.Name</td>
+                            <td class="path">@row.Camera.Folder</td>
+                            <td class="number">@Texts.FreeSpace(row.FreeSpace)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <p class="panel-note">Old images are deleted at <code>@Retention.Schedule</code>: @RetentionText.</p>
+    </section>
+</div>

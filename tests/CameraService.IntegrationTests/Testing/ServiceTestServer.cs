@@ -119,7 +119,8 @@ internal sealed class ServiceTestServer : IAsyncDisposable
             ["Camera:FrameTimeout"] = "1",
             ["Stream:Fps"] = "30",
             ["Storage:Path"] = storagePath,
-            // Not deleted by the free space of the drive of the PC
+            // The images of the tests are not deleted by their dates or by the free space of the drive of the PC
+            ["Retention:Days"] = "0",
             ["Retention:MinFreeSpace"] = "0"
         };
         foreach (var (key, value) in settings ?? new Dictionary<string, string?>())

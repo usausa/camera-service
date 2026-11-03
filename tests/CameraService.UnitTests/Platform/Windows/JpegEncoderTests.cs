@@ -1,13 +1,8 @@
 namespace CameraService.Platform.Windows;
 
-using System.Runtime.InteropServices.WindowsRuntime;
-
-using global::Windows.Graphics.Imaging;
-using global::Windows.Storage.Streams;
-
 public sealed class JpegEncoderTests
 {
-    private const int BytesPerPixel = 4;
+    private const int BytesPerPixel = TestImages.BytesPerPixel;
 
     private const int Quality = 80;
 
@@ -33,7 +28,7 @@ public sealed class JpegEncoderTests
         Assert.Equal([0xFF, 0xD8], destination[..2]);
         Assert.Equal([0xFF, 0xD9], destination[(written - 2)..written]);
 
-        var (decodedWidth, decodedHeight, actual) = await DecodeAsync(destination[..written]).ConfigureAwait(true);
+        var (decodedWidth, decodedHeight, actual) = await TestImages.DecodeAsync(destination[..written]).ConfigureAwait(true);
         Assert.Equal(width, decodedWidth);
         Assert.Equal(height, decodedHeight);
         Assert.True(CalculatePsnr(ToBgra(y, uv, width, height), actual) > 30);
@@ -135,19 +130,6 @@ public sealed class JpegEncoderTests
     }
 
     private static byte Clamp(double value) => (byte)Math.Clamp(Math.Round(value), 0, 255);
-
-    private static async Task<(int Width, int Height, byte[] Bgra)> DecodeAsync(byte[] jpeg)
-    {
-        var cancellationToken = TestContext.Current.CancellationToken;
-        using var stream = new InMemoryRandomAccessStream();
-        await stream.WriteAsync(jpeg.AsBuffer()).AsTask(cancellationToken).ConfigureAwait(true);
-        stream.Seek(0);
-        var decoder = await BitmapDecoder.CreateAsync(stream).AsTask(cancellationToken).ConfigureAwait(true);
-        using var bitmap = await decoder.GetSoftwareBitmapAsync(BitmapPixelFormat.Bgra8, BitmapAlphaMode.Ignore).AsTask(cancellationToken).ConfigureAwait(true);
-        var bgra = new byte[bitmap.PixelWidth * bitmap.PixelHeight * BytesPerPixel];
-        bitmap.CopyToBuffer(bgra.AsBuffer());
-        return (bitmap.PixelWidth, bitmap.PixelHeight, bgra);
-    }
 
     // RGB channels only
     private static double CalculatePsnr(byte[] expected, byte[] actual)

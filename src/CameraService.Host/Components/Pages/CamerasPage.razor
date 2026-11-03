@@ -1,21 +1,59 @@
 @page "/"
 
-<PageTitle>Cameras</PageTitle>
+<PageTitle>Cameras - Camera Service</PageTitle>
 
-<div class="camera-list">
-    @foreach (var camera in Manager.Cameras)
+<div class="page">
+    <div class="page-header">
+        <h1 class="page-title">Cameras</h1>
+    </div>
+
+    @if (items.Count == 0)
     {
-        <section class="camera-card">
-            <div class="camera-header">
-                <span class="camera-name">@camera.Name</span>
-                <span class="camera-state">@camera.Channel.State</span>
-                <button class="camera-button" type="button" @onclick="() => Toggle(camera.Id)">@(IsLive(camera.Id) ? "Stop" : "Live")</button>
-                <a class="camera-link" href="@SnapshotUrl(camera.Id)" target="_blank">Snapshot</a>
-            </div>
-            @if (IsLive(camera.Id))
+        <div class="empty">
+            <i class="bi bi-camera-video-off"></i>
+            <p>No camera is configured.</p>
+        </div>
+    }
+    else
+    {
+        <div class="card-grid">
+            @foreach (var item in items)
             {
-                <LiveView CameraId="@camera.Id" />
+                var camera = item.Camera;
+                <div class="card">
+                    <a class="card-preview" href="@Links.Camera(camera.Id)">
+                        @if (item.Latest is { } latest)
+                        {
+                            <img src="@Links.Thumbnail(camera.Id, latest.Date, latest.Time)" alt="@camera.Name" />
+                        }
+                        else
+                        {
+                            <i class="bi bi-image"></i>
+                        }
+                    </a>
+                    <div class="card-body">
+                        <div class="card-title">
+                            <span class="card-name">@camera.Name</span>
+                            <StateBadge State="camera.Channel.State" />
+                        </div>
+                        <div class="card-meta">
+                            <i class="bi bi-clock"></i>
+                            <span>@(item.Latest is { } last ? Texts.DateTime(last.Date, last.Time) : "No saved image")</span>
+                        </div>
+                        @if (item.Error is not null)
+                        {
+                            <div class="card-error">
+                                <i class="bi bi-exclamation-triangle-fill"></i>
+                                <span>@item.Error</span>
+                            </div>
+                        }
+                        <div class="card-actions">
+                            <a class="button" href="@Links.Camera(camera.Id)"><i class="bi bi-broadcast"></i> Live</a>
+                            <a class="button" href="@Links.Images(camera.Id)"><i class="bi bi-images"></i> Images</a>
+                        </div>
+                    </div>
+                </div>
             }
-        </section>
+        </div>
     }
 </div>

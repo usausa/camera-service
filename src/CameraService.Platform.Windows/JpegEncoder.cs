@@ -6,14 +6,8 @@ using CameraService.Core;
 
 // WIC JPEG encoder called through the COM vtable.
 // Full range NV12 is passed as YCbCr planes without color conversion, and the data is written to the given buffer.
-public sealed unsafe partial class JpegEncoder : IJpegEncoder
+public sealed unsafe class JpegEncoder : IJpegEncoder
 {
-    // IWICImagingFactory
-    private const int CreateEncoderSlot = 8;
-    private const int CreateStreamSlot = 14;
-    // IWICStream (IStream)
-    private const int SeekSlot = 5;
-    private const int InitializeFromMemorySlot = 16;
     // IWICBitmapEncoder
     private const int EncoderInitializeSlot = 3;
     private const int CreateNewFrameSlot = 10;
@@ -29,9 +23,7 @@ public sealed unsafe partial class JpegEncoder : IJpegEncoder
     // IWICPlanarBitmapFrameEncode
     private const int WritePixelsSlot = 3;
 
-    private const uint ClsctxInprocServer = 1;
     private const int EncoderNoCache = 2;
-    private const uint StreamSeekCurrent = 1;
     private const ushort VariantSingle = 4;
     private const ushort VariantByte = 17;
     private const byte Subsampling420 = 1;
@@ -39,13 +31,8 @@ public sealed unsafe partial class JpegEncoder : IJpegEncoder
     private const double Dpi = 96;
     private const int HeaderAllowance = 4096;
 
-    private static readonly Guid ClsidImagingFactory = new("317d06e8-5f24-433d-bdf7-79ce68d8abc2");
-    private static readonly Guid IidImagingFactory = new("ec5ec8a9-c395-4314-9c77-54d7a935ff70");
     private static readonly Guid IidPlanarFrameEncode = new("f928b7b8-2221-40c1-b72e-7e82f1974d1a");
     private static readonly Guid ContainerFormatJpeg = new("19e4a5aa-5662-4fc5-a0c0-1758028e1057");
-    private static readonly Guid PixelFormat24BppBgr = new("6fddc324-4e03-4bfe-b185-3d77768dc90c");
-    private static readonly Guid PixelFormat8BppY = new("91b4db54-2df9-42f0-b449-2909bb3df88e");
-    private static readonly Guid PixelFormat16BppCbCr = new("ff95ba6e-11e0-4263-bb45-01721f3460a4");
 
     private readonly float quality;
 
@@ -56,7 +43,7 @@ public sealed unsafe partial class JpegEncoder : IJpegEncoder
         ArgumentOutOfRangeException.ThrowIfLessThan(quality, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(quality, 100);
         this.quality = quality / 100f;
-        Marshal.ThrowExceptionForHR(CoCreateInstance(in ClsidImagingFactory, IntPtr.Zero, ClsctxInprocServer, in IidImagingFactory, out factory));
+        factory = Wic.CreateFactory();
     }
 
     public void Dispose()
@@ -97,9 +84,9 @@ public sealed unsafe partial class JpegEncoder : IJpegEncoder
             {
                 fixed (byte* destinationPointer = destination)
                 {
-                    var planes = stackalloc WicBitmapPlane[PlaneCount];
-                    planes[0] = new WicBitmapPlane { Format = PixelFormat8BppY, Buffer = yPointer, Stride = (uint)yStride, BufferSize = (uint)y.Length };
-                    planes[1] = new WicBitmapPlane { Format = PixelFormat16BppCbCr, Buffer = uvPointer, Stride = (uint)uvStride, BufferSize = (uint)uv.Length };
+                    var planes = stackalloc Wic.BitmapPlane[PlaneCount];
+                    planes[0] = new Wic.BitmapPlane { Format = Wic.PixelFormat8BppY, Buffer = yPointer, Stride = (uint)yStride, BufferSize = (uint)y.Length };
+                    planes[1] = new Wic.BitmapPlane { Format = Wic.PixelFormat16BppCbCr, Buffer = uvPointer, Stride = (uint)uvStride, BufferSize = (uint)uv.Length };
                     result = Encode(planes, width, height, destinationPointer, destination.Length, out length);
                 }
             }
@@ -122,7 +109,7 @@ public sealed unsafe partial class JpegEncoder : IJpegEncoder
         throw new InvalidOperationException("JPEG encoding failed.");
     }
 
-    private int Encode(WicBitmapPlane* planes, int width, int height, byte* destination, int capacity, out int length)
+    private int Encode(Wic.BitmapPlane* planes, int width, int height, byte* destination, int capacity, out int length)
     {
         length = 0;
         var stream = IntPtr.Zero;
@@ -133,13 +120,7 @@ public sealed unsafe partial class JpegEncoder : IJpegEncoder
         try
         {
             // IWICImagingFactory.CreateStream, IWICStream.InitializeFromMemory
-            var result = ((delegate* unmanaged[Stdcall]<IntPtr, IntPtr*, int>)Vtbl(factory)[CreateStreamSlot])(factory, &stream);
-            if (result < 0)
-            {
-                return result;
-            }
-
-            result = ((delegate* unmanaged[Stdcall]<IntPtr, byte*, uint, int>)Vtbl(stream)[InitializeFromMemorySlot])(stream, destination, (uint)capacity);
+            var result = Wic.CreateMemoryStream(factory, destination, capacity, out stream);
             if (result < 0)
             {
                 return result;
@@ -147,19 +128,19 @@ public sealed unsafe partial class JpegEncoder : IJpegEncoder
 
             // IWICImagingFactory.CreateEncoder, IWICBitmapEncoder.Initialize, IWICBitmapEncoder.CreateNewFrame
             var container = ContainerFormatJpeg;
-            result = ((delegate* unmanaged[Stdcall]<IntPtr, Guid*, Guid*, IntPtr*, int>)Vtbl(factory)[CreateEncoderSlot])(factory, &container, null, &encoder);
+            result = ((delegate* unmanaged[Stdcall]<IntPtr, Guid*, Guid*, IntPtr*, int>)Wic.Vtbl(factory)[Wic.CreateEncoderSlot])(factory, &container, null, &encoder);
             if (result < 0)
             {
                 return result;
             }
 
-            result = ((delegate* unmanaged[Stdcall]<IntPtr, IntPtr, int, int>)Vtbl(encoder)[EncoderInitializeSlot])(encoder, stream, EncoderNoCache);
+            result = ((delegate* unmanaged[Stdcall]<IntPtr, IntPtr, int, int>)Wic.Vtbl(encoder)[EncoderInitializeSlot])(encoder, stream, EncoderNoCache);
             if (result < 0)
             {
                 return result;
             }
 
-            result = ((delegate* unmanaged[Stdcall]<IntPtr, IntPtr*, IntPtr*, int>)Vtbl(encoder)[CreateNewFrameSlot])(encoder, &frame, &options);
+            result = ((delegate* unmanaged[Stdcall]<IntPtr, IntPtr*, IntPtr*, int>)Wic.Vtbl(encoder)[CreateNewFrameSlot])(encoder, &frame, &options);
             if (result < 0)
             {
                 return result;
@@ -172,27 +153,27 @@ public sealed unsafe partial class JpegEncoder : IJpegEncoder
                 return result;
             }
 
-            result = ((delegate* unmanaged[Stdcall]<IntPtr, IntPtr, int>)Vtbl(frame)[FrameInitializeSlot])(frame, options);
+            result = ((delegate* unmanaged[Stdcall]<IntPtr, IntPtr, int>)Wic.Vtbl(frame)[FrameInitializeSlot])(frame, options);
             if (result < 0)
             {
                 return result;
             }
 
-            result = ((delegate* unmanaged[Stdcall]<IntPtr, uint, uint, int>)Vtbl(frame)[SetSizeSlot])(frame, (uint)width, (uint)height);
+            result = ((delegate* unmanaged[Stdcall]<IntPtr, uint, uint, int>)Wic.Vtbl(frame)[SetSizeSlot])(frame, (uint)width, (uint)height);
             if (result < 0)
             {
                 return result;
             }
 
-            result = ((delegate* unmanaged[Stdcall]<IntPtr, double, double, int>)Vtbl(frame)[SetResolutionSlot])(frame, Dpi, Dpi);
+            result = ((delegate* unmanaged[Stdcall]<IntPtr, double, double, int>)Wic.Vtbl(frame)[SetResolutionSlot])(frame, Dpi, Dpi);
             if (result < 0)
             {
                 return result;
             }
 
             // The interleaved format decides the accepted planar formats
-            var pixelFormat = PixelFormat24BppBgr;
-            result = ((delegate* unmanaged[Stdcall]<IntPtr, Guid*, int>)Vtbl(frame)[SetPixelFormatSlot])(frame, &pixelFormat);
+            var pixelFormat = Wic.PixelFormat24BppBgr;
+            result = ((delegate* unmanaged[Stdcall]<IntPtr, Guid*, int>)Wic.Vtbl(frame)[SetPixelFormatSlot])(frame, &pixelFormat);
             if (result < 0)
             {
                 return result;
@@ -205,20 +186,20 @@ public sealed unsafe partial class JpegEncoder : IJpegEncoder
                 return result;
             }
 
-            result = ((delegate* unmanaged[Stdcall]<IntPtr, uint, WicBitmapPlane*, uint, int>)Vtbl(planar)[WritePixelsSlot])(planar, (uint)height, planes, PlaneCount);
+            result = ((delegate* unmanaged[Stdcall]<IntPtr, uint, Wic.BitmapPlane*, uint, int>)Wic.Vtbl(planar)[WritePixelsSlot])(planar, (uint)height, planes, PlaneCount);
             if (result < 0)
             {
                 return result;
             }
 
             // IWICBitmapFrameEncode.Commit, IWICBitmapEncoder.Commit
-            result = ((delegate* unmanaged[Stdcall]<IntPtr, int>)Vtbl(frame)[FrameCommitSlot])(frame);
+            result = ((delegate* unmanaged[Stdcall]<IntPtr, int>)Wic.Vtbl(frame)[FrameCommitSlot])(frame);
             if (result < 0)
             {
                 return result;
             }
 
-            result = ((delegate* unmanaged[Stdcall]<IntPtr, int>)Vtbl(encoder)[EncoderCommitSlot])(encoder);
+            result = ((delegate* unmanaged[Stdcall]<IntPtr, int>)Wic.Vtbl(encoder)[EncoderCommitSlot])(encoder);
             if (result < 0)
             {
                 return result;
@@ -226,7 +207,7 @@ public sealed unsafe partial class JpegEncoder : IJpegEncoder
 
             // IStream.Seek (current position = encoded length)
             ulong position;
-            result = ((delegate* unmanaged[Stdcall]<IntPtr, long, uint, ulong*, int>)Vtbl(stream)[SeekSlot])(stream, 0, StreamSeekCurrent, &position);
+            result = ((delegate* unmanaged[Stdcall]<IntPtr, long, uint, ulong*, int>)Wic.Vtbl(stream)[Wic.SeekSlot])(stream, 0, Wic.StreamSeekCurrent, &position);
             if (result >= 0)
             {
                 length = (int)position;
@@ -236,11 +217,11 @@ public sealed unsafe partial class JpegEncoder : IJpegEncoder
         }
         finally
         {
-            Release(planar);
-            Release(options);
-            Release(frame);
-            Release(encoder);
-            Release(stream);
+            Wic.Release(planar);
+            Wic.Release(options);
+            Wic.Release(frame);
+            Wic.Release(encoder);
+            Wic.Release(stream);
         }
     }
 
@@ -256,7 +237,7 @@ public sealed unsafe partial class JpegEncoder : IJpegEncoder
                 names[1] = new PropertyBagEntry { Name = subsamplingName };
                 values[0] = new Variant { Type = VariantSingle, Single = quality };
                 values[1] = new Variant { Type = VariantByte, Byte = Subsampling420 };
-                return ((delegate* unmanaged[Stdcall]<IntPtr, uint, PropertyBagEntry*, Variant*, int>)Vtbl(options)[WriteSlot])(options, 2, names, values);
+                return ((delegate* unmanaged[Stdcall]<IntPtr, uint, PropertyBagEntry*, Variant*, int>)Wic.Vtbl(options)[WriteSlot])(options, 2, names, values);
             }
         }
     }
@@ -264,20 +245,6 @@ public sealed unsafe partial class JpegEncoder : IJpegEncoder
     // Ends with the EOI marker
     private static bool IsComplete(Span<byte> destination, int length) =>
         (length >= 4) && (length <= destination.Length) && (destination[length - 2] == 0xFF) && (destination[length - 1] == 0xD9);
-
-    private static void** Vtbl(IntPtr pointer) => *(void***)pointer;
-
-    private static void Release(IntPtr pointer)
-    {
-        if (pointer != IntPtr.Zero)
-        {
-            Marshal.Release(pointer);
-        }
-    }
-
-    [LibraryImport("ole32.dll")]
-    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
-    private static partial int CoCreateInstance(in Guid clsid, IntPtr outer, uint context, in Guid iid, out IntPtr pointer);
 
     // PROPBAG2
     [StructLayout(LayoutKind.Sequential)]
@@ -303,15 +270,5 @@ public sealed unsafe partial class JpegEncoder : IJpegEncoder
 
         [FieldOffset(8)]
         public byte Byte;
-    }
-
-    // WICBitmapPlane
-    [StructLayout(LayoutKind.Sequential)]
-    private struct WicBitmapPlane
-    {
-        public Guid Format;
-        public byte* Buffer;
-        public uint Stride;
-        public uint BufferSize;
     }
 }

@@ -37,6 +37,9 @@ var app = builder.Build();
 // Startup information
 app.LogStartupInformation();
 
+// Stop
+app.UseStoppingGate();
+
 // Antiforgery (Blazor)
 app.UseAntiforgery();
 

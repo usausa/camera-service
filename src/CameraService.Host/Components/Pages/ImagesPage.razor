@@ -1,0 +1,84 @@
+@page "/cameras/{Id}/images"
+@page "/cameras/{Id}/images/{Date}"
+
+<PageTitle>@(camera is null ? "Not found" : $"{camera.Name} images") - Camera Service</PageTitle>
+
+@if (camera is null)
+{
+    <div class="page">
+        <div class="empty">
+            <i class="bi bi-camera-video-off"></i>
+            <p>The camera is not found.</p>
+        </div>
+    </div>
+}
+else
+{
+    <div class="page">
+        <div class="page-header">
+            <nav class="breadcrumb">
+                <a href="">Cameras</a>
+                <i class="bi bi-chevron-right"></i>
+                <a href="@Links.Camera(camera.Id)">@camera.Name</a>
+                <i class="bi bi-chevron-right"></i>
+                <span>Images</span>
+            </nav>
+            <div class="toolbar">
+                @if (dates.Count > 0)
+                {
+                    <select class="select" title="Date" value="@DateValue(selectedDate)" @onchange="OnDateChanged">
+                        @foreach (var date in dates)
+                        {
+                            <option value="@DateValue(date)">@Texts.Date(date)</option>
+                        }
+                    </select>
+                }
+                <button type="button" class="button" title="Load the new images" @onclick="Reload"><i class="bi bi-arrow-clockwise"></i></button>
+                <button type="button" class="button" disabled="@(times.Count == 0)" @onclick="PlayHour"><i class="bi bi-play-fill"></i> Time-lapse</button>
+            </div>
+        </div>
+
+        @if (times.Count == 0)
+        {
+            <div class="empty">
+                <i class="bi bi-images"></i>
+                <p>@(dates.Count == 0 ? "No image is saved." : "No image on this date.")</p>
+            </div>
+        }
+        else
+        {
+            <div class="hours">
+                @for (var i = 0; i < HoursPerDay; i++)
+                {
+                    var current = i;
+                    <button type="button" class="hour @(current == hour ? "active" : null)" disabled="@(hourCounts[current] == 0)" @onclick="() => hour = current">
+                        <span class="hour-label">@current.ToString("00", CultureInfo.InvariantCulture)</span>
+                        <span class="hour-count">@hourCounts[current]</span>
+                    </button>
+                }
+            </div>
+
+            <div class="thumb-grid">
+                @for (var i = 0; i < times.Count; i++)
+                {
+                    var index = i;
+                    var time = times[index];
+                    if (time.Hour != hour)
+                    {
+                        continue;
+                    }
+
+                    <button type="button" class="thumb" @onclick="() => Open(index, false)">
+                        <img src="@Links.Thumbnail(camera.Id, selectedDate, time)" alt="@Texts.Time(time)" loading="lazy" />
+                        <span class="thumb-time">@Texts.Time(time)</span>
+                    </button>
+                }
+            </div>
+        }
+    </div>
+
+    @if (viewerIndex is { } start)
+    {
+        <ImageViewer CameraId="@camera.Id" Date="selectedDate" Times="times" Index="start" Play="viewerPlay" OnClose="CloseViewer" />
+    }
+}

@@ -4,10 +4,15 @@ using CameraService.Host.Services;
 
 using Microsoft.AspNetCore.Components;
 
-// Temporary page: the cameras with a live view each (replaced by the camera pages later)
-public sealed partial class CamerasPage
+// The cameras with their newest saved image and their state.
+// No live view here: a browser opens at most 6 connections to a server over HTTP/1.1, the live view is on the page of a camera.
+public sealed partial class CamerasPage : IDisposable
 {
-    private readonly HashSet<string> liveCameras = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly TimeSpan RefreshInterval = TimeSpan.FromSeconds(10);
+
+    private readonly CancellationTokenSource disposed = new();
+
+    private IReadOnlyList<CameraItem> items = [];
 
     //--------------------------------------------------------------------------------
     // Property
@@ -16,19 +21,51 @@ public sealed partial class CamerasPage
     [Inject]
     public required CameraManager Manager { get; set; }
 
+    [Inject]
+    public required ImageStore Store { get; set; }
+
     //--------------------------------------------------------------------------------
-    // Event
+    // Lifecycle
     //--------------------------------------------------------------------------------
 
-    private bool IsLive(string id) => liveCameras.Contains(id);
-
-    private void Toggle(string id)
+    protected override void OnInitialized()
     {
-        if (!liveCameras.Remove(id))
+        Update();
+        _ = RefreshAsync(disposed.Token);
+    }
+
+    public void Dispose()
+    {
+        disposed.Cancel();
+        disposed.Dispose();
+    }
+
+    //--------------------------------------------------------------------------------
+    // Refresh
+    //--------------------------------------------------------------------------------
+
+    // The newest images and the states, while the page is shown
+    private async Task RefreshAsync(CancellationToken cancellationToken)
+    {
+        try
         {
-            liveCameras.Add(id);
+            using var timer = new PeriodicTimer(RefreshInterval);
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                await InvokeAsync(() =>
+                {
+                    Update();
+                    StateHasChanged();
+                });
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The page is closed
         }
     }
 
-    private static string SnapshotUrl(string id) => $"cameras/{id}/snapshot.jpg";
+    private void Update() => items = [.. Manager.Cameras.Select(x => new CameraItem(x, Store.FindLatest(x), x.ErrorMessage))];
+
+    private sealed record CameraItem(Camera Camera, (DateOnly Date, TimeOnly Time)? Latest, string? Error);
 }
