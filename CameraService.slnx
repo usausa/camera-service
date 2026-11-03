@@ -1,4 +1,15 @@
 <Solution>
+  <Folder Name="/Application/">
+    <Project Path="src/CameraService.Core/CameraService.Core.csproj" />
+    <Project Path="src/CameraService.Host/CameraService.Host.csproj" />
+  </Folder>
+  <Folder Name="/Platform/">
+    <Project Path="src/CameraService.Platform.Windows/CameraService.Platform.Windows.csproj" />
+  </Folder>
+  <Folder Name="/Test/">
+    <Project Path="tests/CameraService.IntegrationTests/CameraService.IntegrationTests.csproj" />
+    <Project Path="tests/CameraService.UnitTests/CameraService.UnitTests.csproj" />
+  </Folder>
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />
     <File Path=".gitattributes" />

@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <CodeAnalysisRuleSet>..\..\Analyzers.ruleset</CodeAnalysisRuleSet>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.14" />
+    <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+    <PackageReference Include="Serilog.Enrichers.Thread" Version="4.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CameraService.Core\CameraService.Core.csproj" />
+    <ProjectReference Include="..\CameraService.Platform.Windows\CameraService.Platform.Windows.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="CameraService.IntegrationTests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="System.ComponentModel.DataAnnotations" />
+    <Using Include="System.Globalization" />
+    <Using Include="Microsoft.Extensions.Options" />
+    <Using Include="CameraService.Host.Application" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Update="appsettings.*.json" CopyToPublishDirectory="Never" />
+  </ItemGroup>
+
+</Project>
