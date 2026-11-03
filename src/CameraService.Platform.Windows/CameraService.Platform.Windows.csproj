@@ -7,6 +7,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Dependency injection (AddWindowsPlatform), the shared framework of the host -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\CameraService.Core\CameraService.Core.csproj" />
   </ItemGroup>
 

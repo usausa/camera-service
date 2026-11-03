@@ -17,16 +17,34 @@ builder.ConfigureHost();
 // Logging
 builder.ConfigureLogging();
 
+// Http
+builder.ConfigureHttp();
+
+// Blazor
+builder.ConfigureBlazor();
+
 // Health
 builder.ConfigureHealth();
+
+// Components
+builder.ConfigureComponents();
 
 //--------------------------------------------------------------------------------
 // Configure the HTTP request pipeline
 //--------------------------------------------------------------------------------
 var app = builder.Build();
 
+// Startup information
+app.LogStartupInformation();
+
+// Antiforgery (Blazor)
+app.UseAntiforgery();
+
 // End point
 app.MapEndpoints();
+
+// Blazor
+app.MapBlazor();
 
 // Run
 await app.RunAsync();

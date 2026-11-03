@@ -1,0 +1,21 @@
+@page "/"
+
+<PageTitle>Cameras</PageTitle>
+
+<div class="camera-list">
+    @foreach (var camera in Manager.Cameras)
+    {
+        <section class="camera-card">
+            <div class="camera-header">
+                <span class="camera-name">@camera.Name</span>
+                <span class="camera-state">@camera.Channel.State</span>
+                <button class="camera-button" type="button" @onclick="() => Toggle(camera.Id)">@(IsLive(camera.Id) ? "Stop" : "Live")</button>
+                <a class="camera-link" href="@SnapshotUrl(camera.Id)" target="_blank">Snapshot</a>
+            </div>
+            @if (IsLive(camera.Id))
+            {
+                <LiveView CameraId="@camera.Id" />
+            }
+        </section>
+    }
+</div>

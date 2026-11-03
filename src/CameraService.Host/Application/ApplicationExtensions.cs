@@ -1,5 +1,13 @@
 namespace CameraService.Host.Application;
 
+using System.Runtime.InteropServices;
+
+using CameraService.Host.Components;
+using CameraService.Host.Endpoints;
+using CameraService.Host.Services;
+using CameraService.Host.Settings;
+using CameraService.Platform.Windows;
+
 using Serilog;
 
 public static class ApplicationExtensions
@@ -29,6 +37,33 @@ public static class ApplicationExtensions
     }
 
     //--------------------------------------------------------------------------------
+    // Http
+    //--------------------------------------------------------------------------------
+
+    public static IHostApplicationBuilder ConfigureHttp(this IHostApplicationBuilder builder)
+    {
+        // JSON
+        builder.Services.ConfigureHttpJsonOptions(static options =>
+        {
+            options.SerializerOptions.TypeInfoResolverChain.Insert(0, ApiJsonContext.Default);
+        });
+
+        return builder;
+    }
+
+    //--------------------------------------------------------------------------------
+    // Blazor
+    //--------------------------------------------------------------------------------
+
+    public static IHostApplicationBuilder ConfigureBlazor(this IHostApplicationBuilder builder)
+    {
+        builder.Services.AddRazorComponents()
+            .AddInteractiveServerComponents();
+
+        return builder;
+    }
+
+    //--------------------------------------------------------------------------------
     // Health
     //--------------------------------------------------------------------------------
 
@@ -40,6 +75,56 @@ public static class ApplicationExtensions
     }
 
     //--------------------------------------------------------------------------------
+    // Components
+    //--------------------------------------------------------------------------------
+
+    public static IHostApplicationBuilder ConfigureComponents(this IHostApplicationBuilder builder)
+    {
+        // Setting
+        builder.Services.AddOptions<CameraSetting>().BindConfiguration("Camera").ValidateDataAnnotations().ValidateOnStart();
+        builder.Services.AddSingleton(static p => p.GetRequiredService<IOptions<CameraSetting>>().Value);
+        builder.Services.AddOptions<StreamSetting>().BindConfiguration("Stream").ValidateDataAnnotations().ValidateOnStart();
+        builder.Services.AddSingleton(static p => p.GetRequiredService<IOptions<StreamSetting>>().Value);
+        builder.Services.AddOptions<List<CameraDeviceSetting>>().BindConfiguration("Cameras").ValidateOnStart();
+        builder.Services.AddSingleton<IValidateOptions<List<CameraDeviceSetting>>, CameraDeviceSettingValidator>();
+
+        // Platform
+        builder.Services.AddWindowsPlatform();
+
+        // Service
+        builder.Services.AddSingleton<CameraManager>();
+        builder.Services.AddHostedService(static p => p.GetRequiredService<CameraManager>());
+
+        return builder;
+    }
+
+    //--------------------------------------------------------------------------------
+    // Startup
+    //--------------------------------------------------------------------------------
+
+    public static void LogStartupInformation(this WebApplication app)
+    {
+        var camera = app.Services.GetRequiredService<CameraSetting>();
+        var stream = app.Services.GetRequiredService<StreamSetting>();
+        var devices = app.Services.GetRequiredService<IOptions<List<CameraDeviceSetting>>>().Value;
+
+        app.Logger.InfoServiceStart();
+        app.Logger.InfoServiceSettingsRuntime(RuntimeInformation.OSDescription, RuntimeInformation.FrameworkDescription, RuntimeInformation.RuntimeIdentifier);
+        app.Logger.InfoServiceSettingsEnvironment(typeof(Program).Assembly.GetName().Version, Environment.CurrentDirectory);
+        app.Logger.InfoServiceSettingsCamera(camera.IdleTime, camera.WarmupTime, camera.FrameTimeout);
+        app.Logger.InfoServiceSettingsStream(stream.Fps, stream.Quality);
+        if (devices.Count == 0)
+        {
+            app.Logger.WarnNoCamera();
+        }
+
+        foreach (var device in devices)
+        {
+            app.Logger.InfoServiceSettingsCameraDevice(device.Id, device.Device, device.DeviceId, device.ToVideoFormat().ToString());
+        }
+    }
+
+    //--------------------------------------------------------------------------------
     // End point
     //--------------------------------------------------------------------------------
 
@@ -47,6 +132,20 @@ public static class ApplicationExtensions
     {
         // Health
         app.MapHealthChecks("/health");
+
+        // Camera
+        app.MapStreamEndpoints();
+        app.MapDeviceEndpoints();
+
+        return app;
+    }
+
+    // Separate from the end points, so that the tests run the end points without the pages and their static files
+    public static WebApplication MapBlazor(this WebApplication app)
+    {
+        app.MapStaticAssets();
+        app.MapRazorComponents<App>()
+            .AddInteractiveServerRenderMode();
 
         return app;
     }

@@ -1,0 +1,96 @@
+:root {
+    --background: #f5f6f8;
+    --surface: #ffffff;
+    --border: #d9dde3;
+    --text: #1f2933;
+    --muted: #616e7c;
+    --accent: #2563eb;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: var(--background);
+    color: var(--text);
+    font-family: "Segoe UI", system-ui, sans-serif;
+    font-size: 14px;
+}
+
+.app-header {
+    display: flex;
+    align-items: center;
+    height: 48px;
+    padding: 0 16px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+}
+
+.app-logo {
+    color: var(--text);
+    font-size: 16px;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.app-main {
+    padding: 16px;
+}
+
+.message {
+    color: var(--muted);
+}
+
+.camera-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    gap: 16px;
+}
+
+.camera-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.camera-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+}
+
+.camera-name {
+    font-weight: 600;
+}
+
+.camera-state {
+    flex: 1;
+    color: var(--muted);
+}
+
+.camera-button {
+    padding: 4px 12px;
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    background: var(--accent);
+    color: #ffffff;
+    cursor: pointer;
+}
+
+.camera-link {
+    color: var(--accent);
+}
+
+.live-view {
+    background: #000000;
+}
+
+.live-image {
+    display: block;
+    width: 100%;
+    height: auto;
+}
