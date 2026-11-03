@@ -5,12 +5,16 @@ using System.Runtime.InteropServices;
 
 using CameraService.Core;
 
-// Camera of the tests: one device whose capture sends a moving gradient of YUY2 at the frame rate of the format
+// Cameras of the tests: two devices whose captures send a moving gradient of YUY2 at the frame rate of the format
 internal sealed class TestCameraProvider : ICameraProvider
 {
     public const string DeviceName = "Test camera";
 
     public const string DeviceId = "test-camera";
+
+    public const string SecondDeviceName = "Test camera 2";
+
+    public const string SecondDeviceId = "test-camera-2";
 
     public const int Width = 320;
 
@@ -18,7 +22,9 @@ internal sealed class TestCameraProvider : ICameraProvider
 
     public const int FrameRate = 30;
 
-    private static readonly VideoDevice Device = new(DeviceId, DeviceName, [new VideoFormat(VideoPixelFormat.Yuy2, Width, Height, FrameRate)]);
+    private static readonly VideoFormat Format = new(VideoPixelFormat.Yuy2, Width, Height, FrameRate);
+
+    private static readonly VideoDevice[] Devices = [new(DeviceId, DeviceName, [Format]), new(SecondDeviceId, SecondDeviceName, [Format])];
 
     private TestCapture? capture;
 
@@ -30,7 +36,7 @@ internal sealed class TestCameraProvider : ICameraProvider
     // Number of the captures created (each open of the camera creates one)
     public int CreatedCount => Volatile.Read(ref createdCount);
 
-    public Task<IReadOnlyList<VideoDevice>> GetDevicesAsync() => Task.FromResult<IReadOnlyList<VideoDevice>>([Device]);
+    public Task<IReadOnlyList<VideoDevice>> GetDevicesAsync() => Task.FromResult<IReadOnlyList<VideoDevice>>(Devices);
 
     public IVideoCapture CreateCapture(string deviceId)
     {
@@ -48,8 +54,6 @@ internal sealed class TestCapture : IVideoCapture
 
     private readonly ManualResetEventSlim stopRequested = new();
 
-    private VideoFormat format;
-
     // Pinned, the frames point to it
     private byte[] buffer = [];
 
@@ -63,7 +67,9 @@ internal sealed class TestCapture : IVideoCapture
 
     public event EventHandler<VideoCaptureFailedEventArgs>? Failed;
 
-    public VideoPixelFormat OutputPixelFormat => format.PixelFormat;
+    public VideoFormat Format { get; private set; }
+
+    public VideoPixelFormat OutputPixelFormat => Format.PixelFormat;
 
     public bool IsDisposed => Volatile.Read(ref disposed) != 0;
 
@@ -92,7 +98,7 @@ internal sealed class TestCapture : IVideoCapture
             throw new InvalidOperationException("Format not supported.");
         }
 
-        this.format = format;
+        Format = format;
         buffer = GC.AllocateArray<byte>(format.Width * format.Height * 2, true);
         return Task.CompletedTask;
     }
@@ -117,8 +123,8 @@ internal sealed class TestCapture : IVideoCapture
     private void Run()
     {
         var pointer = Marshal.UnsafeAddrOfPinnedArrayElement(buffer, 0);
-        var plane = new FramePlane(0, format.Width, format.Height, format.Width * 2);
-        var interval = Stopwatch.Frequency / format.FrameRate;
+        var plane = new FramePlane(0, Format.Width, Format.Height, Format.Width * 2);
+        var interval = Stopwatch.Frequency / Format.FrameRate;
         var start = Stopwatch.GetTimestamp();
         long sequence = 0;
         while (true)
@@ -128,7 +134,7 @@ internal sealed class TestCapture : IVideoCapture
             if (!paused)
             {
                 var now = CaptureClock.Now;
-                eventArgs.Frame = new FrameBuffer(pointer, buffer.Length, VideoPixelFormat.Yuy2, VideoColorRange.Limited, format.Width, format.Height, plane, default, sequence, now, now);
+                eventArgs.Frame = new FrameBuffer(pointer, buffer.Length, VideoPixelFormat.Yuy2, VideoColorRange.Limited, Format.Width, Format.Height, plane, default, sequence, now, now);
                 try
                 {
                     FrameCaptured?.Invoke(this, eventArgs);
@@ -152,10 +158,11 @@ internal sealed class TestCapture : IVideoCapture
     private void Fill(long index)
     {
         var shift = (int)(index * 4);
-        for (var y = 0; y < format.Height; y++)
+        var width = Format.Width;
+        for (var y = 0; y < Format.Height; y++)
         {
-            var row = buffer.AsSpan(y * format.Width * 2, format.Width * 2);
-            for (var x = 0; x < format.Width; x++)
+            var row = buffer.AsSpan(y * width * 2, width * 2);
+            for (var x = 0; x < width; x++)
             {
                 row[x * 2] = (byte)(x + y + shift);
                 row[(x * 2) + 1] = 128;

@@ -10,6 +10,9 @@ public sealed class CameraManager : IHostedService, IAsyncDisposable
 {
     private static readonly TimeSpan TickInterval = TimeSpan.FromMilliseconds(500);
 
+    // Opening a camera takes about 1 second, the warm-up follows
+    private static readonly TimeSpan OpenAllowance = TimeSpan.FromSeconds(2);
+
     private readonly ILogger<CameraManager> log;
 
     private readonly ICameraProvider provider;
@@ -27,18 +30,24 @@ public sealed class CameraManager : IHostedService, IAsyncDisposable
         ILoggerFactory loggerFactory,
         ICameraProvider provider,
         IJpegEncoderFactory encoderFactory,
+        LocalTimeProvider timeProvider,
         CameraSetting cameraSetting,
         StreamSetting streamSetting,
+        StorageSetting storageSetting,
         IOptions<List<CameraDeviceSetting>> devices)
     {
         this.log = log;
         this.provider = provider;
         var channelLog = loggerFactory.CreateLogger<CameraChannel>();
         var publisherLog = loggerFactory.CreateLogger<JpegPublisher>();
+        var snapshotLog = loggerFactory.CreateLogger<SnapshotWriter>();
+        var prepareTime = TimeSpan.FromMilliseconds(cameraSetting.WarmupTime) + OpenAllowance;
         cameras = [.. devices.Value.Select(x =>
         {
             var channel = new CameraChannel(channelLog, provider, x, cameraSetting);
-            return new Camera(x, channel, new JpegPublisher(publisherLog, channel, encoderFactory, streamSetting));
+            var folder = SnapshotStorage.GetCameraFolder(AppContext.BaseDirectory, storageSetting.Path, x.Snapshot.Path, x.Id);
+            var snapshot = x.Snapshot.Enable ? new SnapshotWriter(snapshotLog, channel, encoderFactory, timeProvider, x.Snapshot, folder, prepareTime) : null;
+            return new Camera(x, channel, new JpegPublisher(publisherLog, channel, encoderFactory, streamSetting), folder, snapshot);
         })];
     }
 

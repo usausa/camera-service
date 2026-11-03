@@ -16,7 +16,7 @@ public sealed class StreamEndpointsTests
         {
             // Act
             using var response = await server.Client.GetAsync(server.GetUri(StreamPath), HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(true);
-            using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(true);
+            var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(true);
             var reader = new MjpegReader(stream);
             var parts = await reader.ReadPartsAsync(3, cancellationToken).ConfigureAwait(true);
 
@@ -47,9 +47,9 @@ public sealed class StreamEndpointsTests
             // Arrange
             using var first = await server.Client.GetAsync(server.GetUri(StreamPath), HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(true);
             using var second = await server.Client.GetAsync(server.GetUri(StreamPath), HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(true);
-            using var firstStream = await first.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(true);
+            var firstStream = await first.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(true);
             var firstReader = new MjpegReader(firstStream);
-            using var secondStream = await second.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(true);
+            var secondStream = await second.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(true);
             var secondReader = new MjpegReader(secondStream);
 
             // Act

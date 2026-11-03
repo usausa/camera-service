@@ -13,7 +13,7 @@ public sealed class CameraChannelRetryTests
         {
             // Arrange
             using var response = await server.Client.GetAsync(server.GetUri(StreamPath), HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(true);
-            using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(true);
+            var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(true);
             var reader = new MjpegReader(stream);
             await reader.ReadPartsAsync(1, cancellationToken).ConfigureAwait(true);
             var hung = server.Camera.Capture!;
@@ -36,7 +36,7 @@ public sealed class CameraChannelRetryTests
             // Arrange (the only client leaves while the camera waits for the retry)
             using (var response = await server.Client.GetAsync(server.GetUri(StreamPath), HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(true))
             {
-                using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(true);
+                var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(true);
                 var reader = new MjpegReader(stream);
                 await reader.ReadPartsAsync(1, cancellationToken).ConfigureAwait(true);
                 server.Camera.Capture!.Fail();

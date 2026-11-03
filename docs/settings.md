@@ -25,6 +25,15 @@
 
 - 640x480 の JPEG は 1 枚約 64 KB。10 fps で約 5 Mbps
 
+## 💾 保存先と自動削除
+
+| キー | 内容 | 既定値 |
+|:--|:--|:--|
+| `Storage:Path` | 保存画像の基準のフォルダー(相対パスならサービスのフォルダーから) | `Images` |
+| `Retention:Schedule` | 古い画像を消す時刻(Cron、現地時刻)。起動時にも動く | `0 3 * * *` |
+| `Retention:Days` | 残す日数(今日を含む)。0 なら日付では消さない | `30` |
+| `Retention:MinFreeSpace` | 残す空き容量(GB)。下回ったら古い日付から消す。0 なら調べない | `10` |
+
 ## 🎥 カメラの一覧(`Cameras`)
 
 | キー | 内容 | 既定値 |
@@ -35,9 +44,19 @@
 | `DeviceId` | 同じ名前のデバイスが複数あるときの区別(`/api/devices` の `id`) | 空 |
 | `Format` | `Yuy2` / `Nv12` | `Yuy2` |
 | `Width` / `Height` / `Fps` | 解像度とフレームレート(カメラが持つ形式) | `640` / `480` / `30` |
+| `Snapshot:Enable` | 定期保存(`appsettings.json` の例では `true`) | `false` |
+| `Snapshot:Schedule` | 保存の時刻(Cron、現地時刻。5 項目か、秒を先頭に足した 6 項目) | `* * * * *` |
+| `Snapshot:Path` | 保存先(相対パスなら `Storage:Path` から)。空ならカメラの `Id` | 空 |
+| `Snapshot:Quality` | 保存する JPEG の品質(1〜100) | `90` |
+| `Snapshot:Timestamp:Enable` | 日時の焼き込み | `true` |
+| `Snapshot:Timestamp:Format` | 日時の書式(数字、空白、`+` `-` `.` `/` `:` だけになるもの) | `yyyy/MM/dd HH:mm:ss` |
+| `Snapshot:Timestamp:Position` | `TopLeft` / `TopRight` / `BottomLeft` / `BottomRight` | `BottomRight` |
+| `Snapshot:Timestamp:Scale` | 文字の大きさ(1 段で 7 ドットの高さ)。0 なら画像の高さから決める | `0` |
 
 - ⚠️ 先頭のデバイスが仮想カメラのことがある(この PC では Pixel 9a の仮想カメラ)。`Device` で名前を指定する
 - 💡 複数台を同じ USB につなぐときは NV12 を使う。非圧縮の YUY2 は帯域が大きい(ELECOM などの NV12 は、カメラが MJPG で送って Windows がデコードしたもの)
+- Cron の書き方と例、保存先の決まり方、焼き込み、自動削除は [💾 保存](snapshot.md)
+- 2 台のカメラで同じ `Snapshot:Path` は使えない(画像が置き換わってしまうので、起動時の検証で止まる)
 
 ## 🔒 HTTPS
 

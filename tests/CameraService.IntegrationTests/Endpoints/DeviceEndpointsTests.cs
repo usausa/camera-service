@@ -15,9 +15,16 @@ public sealed class DeviceEndpointsTests
             using var document = JsonDocument.Parse(json);
 
             // Assert
-            var device = Assert.Single(document.RootElement.EnumerateArray());
-            Assert.Equal(TestCameraProvider.DeviceId, device.GetProperty("id").GetString());
-            Assert.Equal(TestCameraProvider.DeviceName, device.GetProperty("name").GetString());
-            Assert.Equal("YUY2 320x240 30fps", Assert.Single(device.GetProperty("formats").EnumerateArray()).GetString());
+            Assert.Collection(
+                document.RootElement.EnumerateArray(),
+                static x => AssertDevice(x, TestCameraProvider.DeviceId, TestCameraProvider.DeviceName),
+                static x => AssertDevice(x, TestCameraProvider.SecondDeviceId, TestCameraProvider.SecondDeviceName));
         });
+
+    private static void AssertDevice(JsonElement device, string id, string name)
+    {
+        Assert.Equal(id, device.GetProperty("id").GetString());
+        Assert.Equal(name, device.GetProperty("name").GetString());
+        Assert.Equal("YUY2 320x240 30fps", Assert.Single(device.GetProperty("formats").EnumerateArray()).GetString());
+    }
 }

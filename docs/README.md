@@ -5,3 +5,4 @@
 | [🚀 導入](setup.md) | 動作環境、試しに動かす、Windows サービスの登録 |
 | [⚙️ 設定](settings.md) | `appsettings.json` の項目、HTTPS |
 | [📡 配信](streaming.md) | エンドポイント、カメラを開く・閉じる仕組み、計測 |
+| [💾 保存](snapshot.md) | Cron の時刻、保存の流れ、保存先、日時の焼き込み、自動削除、計測 |

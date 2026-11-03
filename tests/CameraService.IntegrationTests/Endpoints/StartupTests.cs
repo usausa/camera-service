@@ -33,4 +33,15 @@ public sealed class StartupTests
             ServiceTestServer.RunAsync(
                 new Dictionary<string, string?> { ["Cameras:0:Format"] = "Bgra8" },
                 static (_, _) => Task.CompletedTask));
+
+    [Theory]
+    [InlineData("Cameras:0:Snapshot:Schedule", "* * *")]
+    [InlineData("Cameras:0:Snapshot:Timestamp:Format", "yyyy/MM/dd ddd")]
+    [InlineData("Retention:Schedule", "0 25 * * *")]
+    [InlineData("Storage:Path", "")]
+    public Task InvalidSavingStopsStart(string key, string value) =>
+        Assert.ThrowsAsync<OptionsValidationException>(() =>
+            ServiceTestServer.RunAsync(
+                new Dictionary<string, string?> { [key] = value },
+                static (_, _) => Task.CompletedTask));
 }

@@ -56,5 +56,90 @@ public sealed class CameraDeviceSettingValidatorTests
         Assert.True(result.Failed);
     }
 
+    [Theory]
+    [InlineData("* * * * *")]
+    [InlineData("*/10 * 22-23,0-5 * * *")]
+    [InlineData("0 0 3 * * 1-5")]
+    public void ValidScheduleSucceeds(string schedule)
+    {
+        // Arrange
+        var camera = Camera("front");
+        camera.Snapshot.Schedule = schedule;
+
+        // Act
+        var result = validator.Validate(null, [camera]);
+
+        // Assert
+        Assert.True(result.Succeeded);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("* * *")]
+    [InlineData("* * * * * * *")]
+    [InlineData("60 * * * *")]
+    public void InvalidScheduleFails(string schedule)
+    {
+        // Arrange
+        var camera = Camera("front");
+        camera.Snapshot.Schedule = schedule;
+
+        // Act
+        var result = validator.Validate(null, [camera]);
+
+        // Assert
+        Assert.True(result.Failed);
+        Assert.Contains("Cameras[0].Snapshot", result.FailureMessage, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("yyyy/MM/dd HH:mm:ss", true)]
+    [InlineData("yyyy-MM-dd HH:mm:ss.fff zzz", true)]
+    [InlineData("yyyy/MM/dd ddd", false)]
+    [InlineData("hh:mm tt", false)]
+    [InlineData("", false)]
+    public void TimestampFormatNeedsCharactersOfFont(string format, bool expected)
+    {
+        // Arrange
+        var camera = Camera("front");
+        camera.Snapshot.Timestamp.Format = format;
+
+        // Act
+        var result = validator.Validate(null, [camera]);
+
+        // Assert
+        Assert.Equal(expected, result.Succeeded);
+    }
+
+    [Fact]
+    public void QualityOutOfRangeFails()
+    {
+        // Arrange
+        var camera = Camera("front");
+        camera.Snapshot.Quality = 0;
+
+        // Act
+        var result = validator.Validate(null, [camera]);
+
+        // Assert
+        Assert.True(result.Failed);
+    }
+
+    [Fact]
+    public void SharedSnapshotPathFails()
+    {
+        // Arrange (the default path of the second camera is its id)
+        var first = Camera("front");
+        first.Snapshot.Path = "door";
+        var second = Camera("door");
+
+        // Act
+        var result = validator.Validate(null, [first, second]);
+
+        // Assert
+        Assert.True(result.Failed);
+        Assert.Contains("[door]", result.FailureMessage, StringComparison.Ordinal);
+    }
+
     private static CameraDeviceSetting Camera(string id) => new() { Id = id };
 }

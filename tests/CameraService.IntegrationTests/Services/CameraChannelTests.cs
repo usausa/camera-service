@@ -37,7 +37,7 @@ public sealed class CameraChannelTests
         {
             // Arrange (a client keeps the camera open)
             using var response = await server.Client.GetAsync(server.GetUri(StreamPath), HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(true);
-            using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(true);
+            var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(true);
             var reader = new MjpegReader(stream);
             await reader.ReadPartsAsync(1, cancellationToken).ConfigureAwait(true);
             var failed = server.Camera.Capture!;

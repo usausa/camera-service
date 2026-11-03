@@ -36,4 +36,5 @@ dotnet run --project src/CameraService.Host
 - 他の PC から見るときは `-FirewallPort 5180` を付けて、ファイアウォールを開ける
 - ⚠️ 発行したフォルダーを使う(ビルドの出力には `wwwroot` がなく、画面の CSS と JS が出ない)
 - ログは発行先の 1 つ上の `Log\CameraService_yyyyMMdd.log`(発行先が `C:\Services\CameraService` なら `C:\Services\Log`)
+- 保存画像は既定で発行先の `Images\{カメラの ID}`。別のドライブにするときは `Storage:Path` か、カメラの `Snapshot:Path` に絶対パスを書く([⚙️ 設定](settings.md))
 - ✅ サービス(LocalSystem、セッション 0)でもカメラを使えることを確かめた

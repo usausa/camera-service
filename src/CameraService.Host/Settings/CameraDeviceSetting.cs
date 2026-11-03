@@ -32,6 +32,8 @@ public sealed class CameraDeviceSetting
     [Range(1, 240)]
     public int Fps { get; set; } = 30;
 
+    public SnapshotSetting Snapshot { get; set; } = new();
+
     public string DisplayName => Name.Length > 0 ? Name : Id;
 
     public VideoFormat ToVideoFormat() => new(Format, Width, Height, Fps);

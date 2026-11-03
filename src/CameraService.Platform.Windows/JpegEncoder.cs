@@ -43,9 +43,9 @@ public sealed unsafe partial class JpegEncoder : IJpegEncoder
     private static readonly Guid IidImagingFactory = new("ec5ec8a9-c395-4314-9c77-54d7a935ff70");
     private static readonly Guid IidPlanarFrameEncode = new("f928b7b8-2221-40c1-b72e-7e82f1974d1a");
     private static readonly Guid ContainerFormatJpeg = new("19e4a5aa-5662-4fc5-a0c0-1758028e1057");
-    private static readonly Guid PixelFormat24bppBgr = new("6fddc324-4e03-4bfe-b185-3d77768dc90c");
-    private static readonly Guid PixelFormat8bppY = new("91b4db54-2df9-42f0-b449-2909bb3df88e");
-    private static readonly Guid PixelFormat16bppCbCr = new("ff95ba6e-11e0-4263-bb45-01721f3460a4");
+    private static readonly Guid PixelFormat24BppBgr = new("6fddc324-4e03-4bfe-b185-3d77768dc90c");
+    private static readonly Guid PixelFormat8BppY = new("91b4db54-2df9-42f0-b449-2909bb3df88e");
+    private static readonly Guid PixelFormat16BppCbCr = new("ff95ba6e-11e0-4263-bb45-01721f3460a4");
 
     private readonly float quality;
 
@@ -98,8 +98,8 @@ public sealed unsafe partial class JpegEncoder : IJpegEncoder
                 fixed (byte* destinationPointer = destination)
                 {
                     var planes = stackalloc WicBitmapPlane[PlaneCount];
-                    planes[0] = new WicBitmapPlane { Format = PixelFormat8bppY, Buffer = yPointer, Stride = (uint)yStride, BufferSize = (uint)y.Length };
-                    planes[1] = new WicBitmapPlane { Format = PixelFormat16bppCbCr, Buffer = uvPointer, Stride = (uint)uvStride, BufferSize = (uint)uv.Length };
+                    planes[0] = new WicBitmapPlane { Format = PixelFormat8BppY, Buffer = yPointer, Stride = (uint)yStride, BufferSize = (uint)y.Length };
+                    planes[1] = new WicBitmapPlane { Format = PixelFormat16BppCbCr, Buffer = uvPointer, Stride = (uint)uvStride, BufferSize = (uint)uv.Length };
                     result = Encode(planes, width, height, destinationPointer, destination.Length, out length);
                 }
             }
@@ -191,7 +191,7 @@ public sealed unsafe partial class JpegEncoder : IJpegEncoder
             }
 
             // The interleaved format decides the accepted planar formats
-            var pixelFormat = PixelFormat24bppBgr;
+            var pixelFormat = PixelFormat24BppBgr;
             result = ((delegate* unmanaged[Stdcall]<IntPtr, Guid*, int>)Vtbl(frame)[SetPixelFormatSlot])(frame, &pixelFormat);
             if (result < 0)
             {

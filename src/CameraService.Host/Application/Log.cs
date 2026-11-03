@@ -21,8 +21,17 @@ internal static partial class Log
     [LoggerMessage(Level = LogLevel.Information, Message = "Stream: fps=[{fps}], quality=[{quality}]")]
     public static partial void InfoServiceSettingsStream(this ILogger logger, int fps, int quality);
 
+    [LoggerMessage(Level = LogLevel.Information, Message = "Storage: path=[{path}]")]
+    public static partial void InfoServiceSettingsStorage(this ILogger logger, string path);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Retention: schedule=[{schedule}], days=[{days}], minFreeSpace=[{minFreeSpace}GB]")]
+    public static partial void InfoServiceSettingsRetention(this ILogger logger, string schedule, int days, int minFreeSpace);
+
     [LoggerMessage(Level = LogLevel.Information, Message = "Camera setting: id=[{id}], device=[{device}], deviceId=[{deviceId}], format=[{format}]")]
     public static partial void InfoServiceSettingsCameraDevice(this ILogger logger, string id, string device, string deviceId, string format);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Snapshot setting: id=[{id}], enable=[{enable}], schedule=[{schedule}], quality=[{quality}], timestamp=[{timestamp}]")]
+    public static partial void InfoServiceSettingsSnapshot(this ILogger logger, string id, bool enable, string schedule, int quality, string timestamp);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "No camera is configured.")]
     public static partial void WarnNoCamera(this ILogger logger);
@@ -54,6 +63,51 @@ internal static partial class Log
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Encode failed. id=[{id}]")]
     public static partial void ErrorEncodeFailed(this ILogger logger, Exception ex, string id);
+
+    // Schedule
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Job scheduled. name=[{name}], schedule=[{schedule}], next=[{next}]")]
+    public static partial void InfoJobScheduled(this ILogger logger, string name, string schedule, DateTimeOffset? next);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Job failed. name=[{name}]")]
+    public static partial void ErrorJobFailed(this ILogger logger, Exception ex, string name);
+
+    // Snapshot
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Snapshot folder. id=[{id}], path=[{path}], free=[{free:F1}GB]")]
+    public static partial void InfoSnapshotFolder(this ILogger logger, string id, string path, double? free);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Snapshot folder is not writable. id=[{id}], path=[{path}]")]
+    public static partial void ErrorSnapshotFolder(this ILogger logger, Exception ex, string id, string path);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Snapshot saved. id=[{id}], path=[{path}], size=[{size}], elapsed=[{elapsed:F0}ms]")]
+    public static partial void DebugSnapshotSaved(this ILogger logger, string id, string path, int size, double elapsed);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Snapshot skipped while the previous one runs. id=[{id}], time=[{time}]")]
+    public static partial void DebugSnapshotSkipped(this ILogger logger, string id, DateTimeOffset time);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Snapshot failed. id=[{id}], message=[{message}]")]
+    public static partial void WarnSnapshotFailed(this ILogger logger, Exception? ex, string id, string message);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Snapshot saved again. id=[{id}], failures=[{failures}]")]
+    public static partial void InfoSnapshotRecovered(this ILogger logger, string id, int failures);
+
+    // Retention
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Images deleted. path=[{path}]")]
+    public static partial void InfoImagesDeleted(this ILogger logger, string path);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Images deleted for free space. path=[{path}], free=[{free:F1}GB]")]
+    public static partial void WarnImagesDeletedForSpace(this ILogger logger, string path, double free);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Free space is low. volume=[{volume}], free=[{free:F1}GB], minimum=[{minimum}GB]")]
+    public static partial void WarnFreeSpaceLow(this ILogger logger, string volume, double free, int minimum);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Images delete failed. path=[{path}]")]
+    public static partial void ErrorImagesDeleteFailed(this ILogger logger, Exception ex, string path);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Retention completed. deleted=[{deleted}], elapsed=[{elapsed:F0}ms]")]
+    public static partial void InfoRetentionCompleted(this ILogger logger, int deleted, double elapsed);
 
     // Client
 

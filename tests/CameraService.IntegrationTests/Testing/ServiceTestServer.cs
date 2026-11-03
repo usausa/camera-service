@@ -13,8 +13,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-// The service on a free port of the loopback address, with the test camera instead of the cameras of the PC.
+// The service on a free port of the loopback address, with the test cameras instead of the cameras of the PC.
 // The settings are only the values given here (the appsettings of the application are not read), and the pages are not mapped.
+// The images are saved in a folder of the test, which is deleted at the end.
 internal sealed class ServiceTestServer : IAsyncDisposable
 {
     public const string CameraId = "test";
@@ -33,15 +34,24 @@ internal sealed class ServiceTestServer : IAsyncDisposable
 
     public TestCameraProvider Camera { get; }
 
+    public TestLoggerProvider Logs { get; }
+
+    public string StoragePath { get; }
+
     public CameraManager Manager { get; }
 
     public CameraChannel Channel => Manager.Find(CameraId)!.Channel;
 
-    private ServiceTestServer(WebApplication app, string directory, TestCameraProvider camera)
+    // The saving of the camera of the tests (enabled by Cameras:0:Snapshot:Enable)
+    public SnapshotWriter Snapshot => Manager.Find(CameraId)!.Snapshot!;
+
+    private ServiceTestServer(WebApplication app, string directory, TestCameraProvider camera, TestLoggerProvider logs, string storagePath)
     {
         this.app = app;
         this.directory = directory;
         Camera = camera;
+        Logs = logs;
+        StoragePath = storagePath;
         Manager = app.Services.GetRequiredService<CameraManager>();
         BaseAddress = new Uri(app.Urls.First());
         Client = new HttpClient { BaseAddress = BaseAddress };
@@ -59,11 +69,15 @@ internal sealed class ServiceTestServer : IAsyncDisposable
     }
 
     // settings: values that replace the defaults (for example "Camera:IdleTime")
-    public static async Task RunAsync(IReadOnlyDictionary<string, string?>? settings, Func<ServiceTestServer, CancellationToken, Task> test)
+    public static Task RunAsync(IReadOnlyDictionary<string, string?>? settings, Func<ServiceTestServer, CancellationToken, Task> test) =>
+        RunAsync(settings, null, test);
+
+    // prepareStorage: called with the storage path before the start (for example to create old images)
+    public static async Task RunAsync(IReadOnlyDictionary<string, string?>? settings, Action<string>? prepareStorage, Func<ServiceTestServer, CancellationToken, Task> test)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         timeout.CancelAfter(TestTimeout);
-        var server = await StartAsync(settings, timeout.Token).ConfigureAwait(true);
+        var server = await StartAsync(settings, prepareStorage, timeout.Token).ConfigureAwait(true);
         try
         {
             await test(server, timeout.Token).ConfigureAwait(true);
@@ -85,11 +99,12 @@ internal sealed class ServiceTestServer : IAsyncDisposable
 
     public Uri GetUri(string path) => new(BaseAddress, path);
 
-    private static async Task<ServiceTestServer> StartAsync(IReadOnlyDictionary<string, string?>? settings, CancellationToken cancellationToken)
+    private static async Task<ServiceTestServer> StartAsync(IReadOnlyDictionary<string, string?>? settings, Action<string>? prepareStorage, CancellationToken cancellationToken)
     {
         // The content root is an empty folder, so the appsettings of the application are not read
         var directory = Path.Combine(Path.GetTempPath(), "CameraService.IntegrationTests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(directory);
+        var storagePath = Path.Combine(directory, "Images");
+        Directory.CreateDirectory(storagePath);
         var values = new Dictionary<string, string?>
         {
             ["Cameras:0:Id"] = CameraId,
@@ -102,7 +117,10 @@ internal sealed class ServiceTestServer : IAsyncDisposable
             ["Camera:IdleTime"] = "1",
             ["Camera:WarmupTime"] = "0",
             ["Camera:FrameTimeout"] = "1",
-            ["Stream:Fps"] = "30"
+            ["Stream:Fps"] = "30",
+            ["Storage:Path"] = storagePath,
+            // Not deleted by the free space of the drive of the PC
+            ["Retention:MinFreeSpace"] = "0"
         };
         foreach (var (key, value) in settings ?? new Dictionary<string, string?>())
         {
@@ -112,6 +130,8 @@ internal sealed class ServiceTestServer : IAsyncDisposable
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = Environments.Production, ContentRootPath = directory });
         builder.Configuration.AddInMemoryCollection(values);
         builder.Logging.ClearProviders();
+        var logs = new TestLoggerProvider();
+        builder.Logging.AddProvider(logs);
         builder.WebHost.UseUrls("http://127.0.0.1:0");
         builder.ConfigureHttp();
         builder.ConfigureHealth();
@@ -124,8 +144,9 @@ internal sealed class ServiceTestServer : IAsyncDisposable
         app.MapEndpoints();
         try
         {
+            prepareStorage?.Invoke(storagePath);
             await app.StartAsync(cancellationToken).ConfigureAwait(true);
-            return new ServiceTestServer(app, directory, camera);
+            return new ServiceTestServer(app, directory, camera, logs, storagePath);
         }
         catch
         {

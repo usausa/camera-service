@@ -201,10 +201,11 @@ public sealed class FrameHubTests
     public void DisposeUnsubscribes()
     {
         // Arrange
-        using var subscription = hub.Subscribe(TestContext.Current.CancellationToken);
+        var subscription = hub.Subscribe(TestContext.Current.CancellationToken);
         var subscribed = hub.ClientCount;
 
-        // Act (disposed again at the end)
+        // Act (the second call does nothing)
+        subscription.Dispose();
         subscription.Dispose();
 
         // Assert
