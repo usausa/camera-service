@@ -20,6 +20,8 @@ public sealed partial class ImageViewer : IAsyncDisposable
 
     private int fps = 10;
 
+    private bool disposed;
+
     //--------------------------------------------------------------------------------
     // Property
     //--------------------------------------------------------------------------------
@@ -69,16 +71,34 @@ public sealed partial class ImageViewer : IAsyncDisposable
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender)
+        if (!firstRender)
         {
+            return;
+        }
+
+        try
+        {
+            var imported = await JS.InvokeAsync<IJSObjectReference>("import", "./js/viewer.js");
+            if (disposed)
+            {
+                // Closed while the script was loaded
+                await imported.DisposeAsync();
+                return;
+            }
+
+            module = imported;
             reference = DotNetObjectReference.Create(this);
-            module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/viewer.js");
             await module.InvokeVoidAsync("listen", reference);
+        }
+        catch (JSDisconnectedException)
+        {
+            // The page is closed
         }
     }
 
     public async ValueTask DisposeAsync()
     {
+        disposed = true;
         StopPlayback();
         if (module is not null)
         {

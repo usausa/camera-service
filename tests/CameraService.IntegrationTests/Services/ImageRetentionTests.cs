@@ -2,9 +2,12 @@ namespace CameraService.Host.Services;
 
 using System.Globalization;
 
+using CameraService.Core;
+using CameraService.Host.Settings;
 using CameraService.Host.Testing;
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 // The deletion runs at the start of the service
 public sealed class ImageRetentionTests
@@ -66,6 +69,33 @@ public sealed class ImageRetentionTests
                 Assert.Equal(2, server.Logs.Entries.Count(static x => (x.Level == LogLevel.Warning) && x.Message.StartsWith("Images deleted for free space.", StringComparison.Ordinal)));
             });
     }
+
+    // The free space is low, then it cannot be read while the images are deleted: the other days are kept
+    [Fact]
+    public Task UnknownFreeSpaceStopsDeleting() =>
+        ServiceTestServer.RunAsync(
+            null,
+            static storage =>
+            {
+                var folder = Path.Combine(storage, ServiceTestServer.CameraId);
+                CreateImage(folder, "20200101");
+                CreateImage(folder, "20200102");
+                CreateImage(folder, "20200103");
+            },
+            static async (server, cancellationToken) =>
+            {
+                // Arrange
+                var answers = new Queue<long?>([0, null]);
+                var setting = new RetentionSetting { Days = 0, MinFreeSpace = 1 };
+                var retention = new ImageRetention(NullLogger<ImageRetention>.Instance, new LocalTimeProvider(), setting, server.Manager, _ => answers.Dequeue());
+
+                // Act
+                await retention.ExecuteAsync(DateTimeOffset.Now, cancellationToken).ConfigureAwait(true);
+
+                // Assert (the oldest day is deleted, and no more after the free space became unknown)
+                var folder = Path.Combine(server.StoragePath, ServiceTestServer.CameraId);
+                Assert.Equal(["20200102", "20200103"], Directory.GetDirectories(folder).Select(static x => Path.GetFileName(x)).Order(StringComparer.Ordinal));
+            });
 
     private static void CreateImage(string cameraFolder, string folderName)
     {

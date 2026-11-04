@@ -11,9 +11,10 @@ public static class SnapshotStorage
 
     private const string TimeFormat = "HHmmss";
 
-    // The storage path is relative to the base folder (the folder of the service), the camera path (the camera id when empty) is relative to the storage path
+    // The storage path is relative to the base folder (the folder of the service), the camera path (the camera id when empty) is relative to the storage path.
+    // One folder has one form, so that two folders can be compared.
     public static string GetCameraFolder(string baseFolder, string storagePath, string cameraPath, string cameraId) =>
-        Path.GetFullPath(cameraPath.Length > 0 ? cameraPath : cameraId, Path.GetFullPath(storagePath, baseFolder));
+        Path.TrimEndingDirectorySeparator(Path.GetFullPath(cameraPath.Length > 0 ? cameraPath : cameraId, Path.GetFullPath(storagePath, baseFolder)));
 
     public static string GetDateFolderName(DateTime time) => FormatDate(DateOnly.FromDateTime(time));
 

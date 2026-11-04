@@ -15,6 +15,9 @@ public sealed class CameraChannel : IAsyncDisposable
 
     private static readonly TimeSpan[] RetryDelays = [TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(60)];
 
+    // A driver that hangs does not keep the steps of the camera, or the stop of the service, waiting
+    private static readonly TimeSpan OperationTimeout = TimeSpan.FromSeconds(15);
+
     private readonly ILogger log;
 
     private readonly ICameraProvider provider;
@@ -45,6 +48,7 @@ public sealed class CameraChannel : IAsyncDisposable
 
     private long retryTimestamp;
 
+    // Failures since the last frame: a camera that opens and then fails, or sends nothing, goes on with the longer delays
     private int failures;
 
     // Set by the capture (MediaCapture.Failed)
@@ -71,6 +75,9 @@ public sealed class CameraChannel : IAsyncDisposable
     public CameraState State { get; private set; }
 
     public string? ErrorMessage { get; private set; }
+
+    // The camera failed and has sent no frame since (also while it tries to open again)
+    public bool IsFailing => Volatile.Read(ref failures) > 0;
 
     // Found when the camera opens first, searched again after a failure
     public VideoDevice? Device { get; private set; }
@@ -174,6 +181,7 @@ public sealed class CameraChannel : IAsyncDisposable
                 else if (Stopwatch.GetElapsedTime(Volatile.Read(ref lastFrameTimestamp), now) > frameTimeout)
                 {
                     log.WarnCameraFrameTimeout(Id, (int)frameTimeout.TotalSeconds);
+                    ErrorMessage = "Camera sent no frame.";
                     await CloseAsync(true).ConfigureAwait(false);
                 }
                 else if ((Volatile.Read(ref leases) == 0) && (Stopwatch.GetElapsedTime(Volatile.Read(ref idleTimestamp), now) >= idleTime))
@@ -185,6 +193,15 @@ public sealed class CameraChannel : IAsyncDisposable
                     break;
                 }
             }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Not a failure known to come from a camera, tried again in the same way so that the camera does not stay in a step
+            log.ErrorCameraStepFailed(ex, Id);
+            Device = null;
+            ScheduleRetry();
+            ErrorMessage = ex.Message;
+            State = CameraState.Failed;
         }
         finally
         {
@@ -201,31 +218,32 @@ public sealed class CameraChannel : IAsyncDisposable
         {
             if (Device is null)
             {
-                await ResolveAsync().ConfigureAwait(false);
+                await ResolveAsync().WaitAsync(OperationTimeout).ConfigureAwait(false);
             }
 
             var device = Device!;
             video = provider.CreateCapture(device.Id);
+
+            // A failure of an earlier capture (while it started, or just before it closed) does not count for this one
+            Volatile.Write(ref failed, 0);
             video.FrameCaptured += OnFrameCaptured;
             video.Failed += OnFailed;
-            await video.OpenAsync(resolvedFormat).ConfigureAwait(false);
+            await video.OpenAsync(resolvedFormat).WaitAsync(OperationTimeout).ConfigureAwait(false);
 
             // The warm-up and the watchdog count from the start of the frames
             var started = Stopwatch.GetTimestamp();
             Volatile.Write(ref openedTimestamp, started);
             Volatile.Write(ref lastFrameTimestamp, started);
             Interlocked.Exchange(ref openedFrames, 0);
-            await video.StartAsync().ConfigureAwait(false);
+            await video.StartAsync().WaitAsync(OperationTimeout).ConfigureAwait(false);
 
             capture = video;
             video = null;
-            failures = 0;
             Volatile.Write(ref retryTimestamp, 0);
-            ErrorMessage = null;
             State = CameraState.Open;
             log.InfoCameraOpened(Id, device.Name, resolvedFormat.ToString(), Stopwatch.GetElapsedTime(start).TotalMilliseconds);
         }
-        catch (Exception ex) when (ex is COMException or UnauthorizedAccessException or InvalidOperationException)
+        catch (Exception ex) when (ex is COMException or UnauthorizedAccessException or InvalidOperationException or TimeoutException)
         {
             // The device may have been changed or plugged in again
             Device = null;
@@ -240,7 +258,7 @@ public sealed class CameraChannel : IAsyncDisposable
             {
                 video.FrameCaptured -= OnFrameCaptured;
                 video.Failed -= OnFailed;
-                await video.DisposeAsync().ConfigureAwait(false);
+                await DisposeCaptureAsync(video).ConfigureAwait(false);
             }
         }
     }
@@ -291,11 +309,12 @@ public sealed class CameraChannel : IAsyncDisposable
         capture = null;
         video.FrameCaptured -= OnFrameCaptured;
         video.Failed -= OnFailed;
-        // Waits for the running frame handler
-        await video.DisposeAsync().ConfigureAwait(false);
+        var error = await DisposeCaptureAsync(video).ConfigureAwait(false);
 
-        if (failure)
+        // A capture that did not close may hold the device: the camera counts as failed until it sends frames again
+        if (failure || (error is not null))
         {
+            ErrorMessage ??= error;
             Device = null;
             ScheduleRetry();
             State = CameraState.Failed;
@@ -309,10 +328,25 @@ public sealed class CameraChannel : IAsyncDisposable
         log.InfoCameraClosed(Id, Interlocked.Read(ref openedFrames));
     }
 
+    // Waits for the running frame handler. Returns the reason when the capture could not be closed (for example the device was removed), otherwise null.
+    private async Task<string?> DisposeCaptureAsync(IVideoCapture video)
+    {
+        try
+        {
+            await video.DisposeAsync().AsTask().WaitAsync(OperationTimeout).ConfigureAwait(false);
+            return null;
+        }
+        catch (Exception ex) when (ex is COMException or UnauthorizedAccessException or InvalidOperationException or TimeoutException)
+        {
+            log.ErrorCameraCloseFailed(ex, Id);
+            return ex.Message;
+        }
+    }
+
     private TimeSpan ScheduleRetry()
     {
-        var delay = RetryDelays[Math.Min(failures, RetryDelays.Length - 1)];
-        failures++;
+        var count = Interlocked.Increment(ref failures);
+        var delay = RetryDelays[Math.Min(count - 1, RetryDelays.Length - 1)];
         Volatile.Write(ref retryTimestamp, Stopwatch.GetTimestamp() + (long)(delay.TotalSeconds * Stopwatch.Frequency));
         return delay;
     }
@@ -327,6 +361,14 @@ public sealed class CameraChannel : IAsyncDisposable
         Volatile.Write(ref lastFrameTimestamp, now);
         Interlocked.Increment(ref capturedFrames);
         Interlocked.Increment(ref openedFrames);
+
+        // The camera works again when it sends a frame
+        if (Volatile.Read(ref failures) != 0)
+        {
+            ErrorMessage = null;
+            Interlocked.Exchange(ref failures, 0);
+        }
+
         if (Stopwatch.GetElapsedTime(Volatile.Read(ref openedTimestamp), now) < warmupTime)
         {
             return;

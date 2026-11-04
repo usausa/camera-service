@@ -73,11 +73,18 @@ internal sealed class ServiceTestServer : IAsyncDisposable
         RunAsync(settings, null, test);
 
     // prepareStorage: called with the storage path before the start (for example to create old images)
-    public static async Task RunAsync(IReadOnlyDictionary<string, string?>? settings, Action<string>? prepareStorage, Func<ServiceTestServer, CancellationToken, Task> test)
+    public static Task RunAsync(IReadOnlyDictionary<string, string?>? settings, Action<string>? prepareStorage, Func<ServiceTestServer, CancellationToken, Task> test) =>
+        RunAsync(settings, prepareStorage, null, test);
+
+    // configureServices: replaces services of the application (the last registration is used)
+    public static Task RunWithServicesAsync(IReadOnlyDictionary<string, string?>? settings, Action<IServiceCollection> configureServices, Func<ServiceTestServer, CancellationToken, Task> test) =>
+        RunAsync(settings, null, configureServices, test);
+
+    private static async Task RunAsync(IReadOnlyDictionary<string, string?>? settings, Action<string>? prepareStorage, Action<IServiceCollection>? configureServices, Func<ServiceTestServer, CancellationToken, Task> test)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         timeout.CancelAfter(TestTimeout);
-        var server = await StartAsync(settings, prepareStorage, timeout.Token).ConfigureAwait(true);
+        var server = await StartAsync(settings, prepareStorage, configureServices, timeout.Token).ConfigureAwait(true);
         try
         {
             await test(server, timeout.Token).ConfigureAwait(true);
@@ -101,7 +108,7 @@ internal sealed class ServiceTestServer : IAsyncDisposable
 
     public Uri GetWebSocketUri(string path) => new UriBuilder(BaseAddress) { Scheme = "ws", Path = path }.Uri;
 
-    private static async Task<ServiceTestServer> StartAsync(IReadOnlyDictionary<string, string?>? settings, Action<string>? prepareStorage, CancellationToken cancellationToken)
+    private static async Task<ServiceTestServer> StartAsync(IReadOnlyDictionary<string, string?>? settings, Action<string>? prepareStorage, Action<IServiceCollection>? configureServices, CancellationToken cancellationToken)
     {
         // The content root is an empty folder, so the appsettings of the application are not read
         var directory = Path.Combine(Path.GetTempPath(), "CameraService.IntegrationTests", Guid.NewGuid().ToString("N"));
@@ -144,6 +151,7 @@ internal sealed class ServiceTestServer : IAsyncDisposable
         // Replaces the cameras of the PC (the last registration is used)
         var camera = new TestCameraProvider();
         builder.Services.AddSingleton<ICameraProvider>(camera);
+        configureServices?.Invoke(builder.Services);
 
         var app = builder.Build();
         app.MapEndpoints();

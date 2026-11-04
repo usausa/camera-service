@@ -39,6 +39,10 @@
                                 {
                                     <div>@Texts.Stream(row.H264Rate, row.H264Bitrate, h264.Hub.ClientCount)</div>
                                     <div class="sub-text">@(h264.EncoderName is { } name ? (h264.IsHardware ? $"{name} (hardware)" : name) : "Not running")</div>
+                                    @if (h264.ErrorMessage is { } h264Error)
+                                    {
+                                        <div class="sub-text error-text">@h264Error</div>
+                                    }
                                 }
                                 else
                                 {

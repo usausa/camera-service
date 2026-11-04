@@ -123,33 +123,51 @@ public sealed class VideoCapture : IVideoCapture
             return;
         }
 
-        await reader.StopAsync().AsTask().ConfigureAwait(false);
-        IsCapturing = false;
-
-        // Wait for the running handler
-        while (Volatile.Read(ref processing) != 0)
+        try
         {
-            await Task.Delay(StopWaitInterval).ConfigureAwait(false);
+            await reader.StopAsync().AsTask().ConfigureAwait(false);
+        }
+        finally
+        {
+            IsCapturing = false;
+
+            // Wait for the running handler
+            while (Volatile.Read(ref processing) != 0)
+            {
+                await Task.Delay(StopWaitInterval).ConfigureAwait(false);
+            }
         }
     }
 
+    // The reader and the capture are released also when stopping fails (for example the device was removed),
+    // otherwise the capture would hold the device exclusively. The exception goes to the caller after that.
     public async Task CloseAsync()
     {
-        await StopAsync().ConfigureAwait(false);
-
-        if (frameReader is not null)
+        try
         {
-            frameArrived?.Dispose();
-            frameArrived = null;
-            frameReader.Dispose();
-            frameReader = null;
+            await StopAsync().ConfigureAwait(false);
         }
-
-        if (mediaCapture is not null)
+        finally
         {
-            mediaCapture.Failed -= OnFailed;
-            mediaCapture.Dispose();
-            mediaCapture = null;
+            try
+            {
+                if (frameReader is not null)
+                {
+                    frameArrived?.Dispose();
+                    frameArrived = null;
+                    frameReader.Dispose();
+                    frameReader = null;
+                }
+            }
+            finally
+            {
+                if (mediaCapture is not null)
+                {
+                    mediaCapture.Failed -= OnFailed;
+                    mediaCapture.Dispose();
+                    mediaCapture = null;
+                }
+            }
         }
     }
 

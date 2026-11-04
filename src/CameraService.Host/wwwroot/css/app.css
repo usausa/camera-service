@@ -426,6 +426,11 @@ code {
     border-radius: 4px;
 }
 
+/* The picture is old */
+.live-mode.offline {
+    background: rgba(192, 32, 32, 0.9);
+}
+
 .live-image,
 .screen-image {
     display: block;

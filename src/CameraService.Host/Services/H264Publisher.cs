@@ -60,6 +60,9 @@ public sealed class H264Publisher : IAsyncDisposable
     // Stopwatch timestamp
     private long failedTimestamp;
 
+    // Canceled when an encoder fails, then replaced for the next clients
+    private CancellationTokenSource failure = new();
+
     private bool stopped;
 
     private long releasedDroppedFrames;
@@ -85,6 +88,7 @@ public sealed class H264Publisher : IAsyncDisposable
 
     public bool IsHardware { get; private set; }
 
+    // Why the last encoder could not be created or stopped working, until an encoder is created (the last state while no client is connected)
     public string? ErrorMessage { get; private set; }
 
     public long EncodedFrames => Interlocked.Read(ref encodedFrames);
@@ -137,6 +141,18 @@ public sealed class H264Publisher : IAsyncDisposable
 
         current?.Dispose();
         Hub.Clear();
+        failure.Dispose();
+    }
+
+    // A new client tries an encoder that failed without waiting for the retry interval.
+    // The token is canceled when the next encoder cannot be created or stops working: the connected clients get no frames from it.
+    public CancellationToken PrepareClient()
+    {
+        lock (encoderSync)
+        {
+            failedFormat = default;
+            return failure.Token;
+        }
     }
 
     // Timer of the manager: releases the encoder when no client has been connected for the idle time
@@ -276,6 +292,11 @@ public sealed class H264Publisher : IAsyncDisposable
         failedFormat = format;
         failedTimestamp = Stopwatch.GetTimestamp();
         ErrorMessage = message;
+
+        // The connected clients stop waiting (on another thread, not in the lock)
+        var failed = failure;
+        failure = new CancellationTokenSource();
+        _ = failed.CancelAsync();
     }
 
     //--------------------------------------------------------------------------------

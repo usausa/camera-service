@@ -22,13 +22,22 @@ public sealed class ImageRetention : ISchedulerJob
     // Folders of all the cameras, also the ones that do not save now (their old images are deleted too)
     private readonly string[] folders;
 
+    // Free space of a drive, null when it is unknown
+    private readonly Func<string, long?> getFreeSpace;
+
     private int running;
 
     public ImageRetention(ILogger<ImageRetention> log, LocalTimeProvider timeProvider, RetentionSetting setting, CameraManager manager)
+        : this(log, timeProvider, setting, manager, SnapshotStorage.GetFreeSpace)
+    {
+    }
+
+    internal ImageRetention(ILogger<ImageRetention> log, LocalTimeProvider timeProvider, RetentionSetting setting, CameraManager manager, Func<string, long?> getFreeSpace)
     {
         this.log = log;
         this.timeProvider = timeProvider;
         this.setting = setting;
+        this.getFreeSpace = getFreeSpace;
         folders = [.. manager.Cameras.Select(static x => x.Folder).Distinct(StringComparer.OrdinalIgnoreCase)];
     }
 
@@ -100,11 +109,12 @@ public sealed class ImageRetention : ISchedulerJob
         }
     }
 
-    // Deletes the oldest days of the drive until the free space is enough
+    // Deletes the oldest days of the drive until the free space is enough.
+    // Stops when the free space becomes unknown: nothing tells that more images have to be deleted.
     private int DeleteForSpace(string volume, IEnumerable<DateFolder> dates, DateOnly today, CancellationToken cancellationToken)
     {
         var minimum = setting.MinFreeSpace * GigaBytes;
-        var free = SnapshotStorage.GetFreeSpace(volume);
+        var free = getFreeSpace(volume);
         if (free is null)
         {
             // Unknown (for example a network path)
@@ -126,7 +136,12 @@ public sealed class ImageRetention : ISchedulerJob
                 log.WarnImagesDeletedForSpace(date.Path, free.Value / GigaBytes);
             }
 
-            free = SnapshotStorage.GetFreeSpace(volume) ?? 0;
+            free = getFreeSpace(volume);
+            if (free is null)
+            {
+                log.WarnFreeSpaceUnknown(volume);
+                return deleted;
+            }
         }
 
         if (free < minimum)

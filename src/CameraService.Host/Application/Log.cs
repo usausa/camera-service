@@ -61,6 +61,12 @@ internal static partial class Log
     [LoggerMessage(Level = LogLevel.Error, Message = "Camera failed. id=[{id}], message=[{message}], code=[{code}]")]
     public static partial void ErrorCameraFailed(this ILogger logger, string id, string message, uint code);
 
+    [LoggerMessage(Level = LogLevel.Error, Message = "Camera close failed. id=[{id}]")]
+    public static partial void ErrorCameraCloseFailed(this ILogger logger, Exception ex, string id);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Camera step failed. id=[{id}]")]
+    public static partial void ErrorCameraStepFailed(this ILogger logger, Exception ex, string id);
+
     [LoggerMessage(Level = LogLevel.Warning, Message = "Camera sent no frame. id=[{id}], timeout=[{timeout}s]")]
     public static partial void WarnCameraFrameTimeout(this ILogger logger, string id, int timeout);
 
@@ -119,6 +125,9 @@ internal static partial class Log
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Free space is low. volume=[{volume}], free=[{free:F1}GB], minimum=[{minimum}GB]")]
     public static partial void WarnFreeSpaceLow(this ILogger logger, string volume, double free, int minimum);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Free space became unknown, no more images are deleted. volume=[{volume}]")]
+    public static partial void WarnFreeSpaceUnknown(this ILogger logger, string volume);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Images delete failed. path=[{path}]")]
     public static partial void ErrorImagesDeleteFailed(this ILogger logger, Exception ex, string path);

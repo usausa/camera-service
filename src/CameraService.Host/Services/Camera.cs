@@ -26,7 +26,7 @@ public sealed class Camera : IAsyncDisposable
 
     // Why the camera or its saving does not work now (the last state while nobody uses the camera)
     public string? ErrorMessage =>
-        Channel.State == CameraState.Failed
+        Channel.IsFailing
             ? Channel.ErrorMessage ?? "Camera failed."
             : Snapshot?.FolderError ?? Snapshot?.ErrorMessage;
 

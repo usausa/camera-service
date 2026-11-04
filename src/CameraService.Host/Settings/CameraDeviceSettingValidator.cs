@@ -1,8 +1,17 @@
 namespace CameraService.Host.Settings;
 
+using CameraService.Core;
+
 // Each camera is validated by its attributes (with the saving and the timestamp), and the Ids must be unique (they are used in the URLs and the folder names)
 public sealed class CameraDeviceSettingValidator : IValidateOptions<List<CameraDeviceSetting>>
 {
+    private readonly IOptions<StorageSetting> storage;
+
+    public CameraDeviceSettingValidator(IOptions<StorageSetting> storage)
+    {
+        this.storage = storage;
+    }
+
     public ValidateOptionsResult Validate(string? name, List<CameraDeviceSetting> options)
     {
         var errors = new List<string>();
@@ -21,12 +30,31 @@ public sealed class CameraDeviceSettingValidator : IValidateOptions<List<CameraD
         }
 
         // The images of two cameras in one folder would replace each other
-        foreach (var path in options.GroupBy(static x => x.Snapshot.Path.Length > 0 ? x.Snapshot.Path : x.Id, StringComparer.OrdinalIgnoreCase).Where(static x => x.Count() > 1).Select(static x => x.Key))
+        foreach (var path in GetFolders(errors, options).GroupBy(static x => x, StringComparer.OrdinalIgnoreCase).Where(static x => x.Count() > 1).Select(static x => x.Key))
         {
-            errors.Add($"Cameras: the snapshot path [{path}] is used by more than one camera.");
+            errors.Add($"Cameras: the snapshot folder [{path}] is used by more than one camera.");
         }
 
         return errors.Count > 0 ? ValidateOptionsResult.Fail(errors) : ValidateOptionsResult.Success;
+    }
+
+    // The folders as they are resolved for the saving: other forms of a path (.\front, front\, x/y, an absolute path) are the same folder
+    private List<string> GetFolders(List<string> errors, List<CameraDeviceSetting> options)
+    {
+        var folders = new List<string>();
+        foreach (var camera in options)
+        {
+            try
+            {
+                folders.Add(SnapshotStorage.GetCameraFolder(AppContext.BaseDirectory, storage.Value.Path, camera.Snapshot.Path, camera.Id));
+            }
+            catch (ArgumentException ex)
+            {
+                errors.Add($"Cameras: the snapshot path of the camera [{camera.Id}] is invalid. {ex.Message}");
+            }
+        }
+
+        return folders;
     }
 
     private static void ValidateObject(List<string> errors, string prefix, object value)

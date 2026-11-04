@@ -1,5 +1,6 @@
 // Live views by key, kept here so that a stream can be stopped after Blazor removed the element.
-// H.264 (WebSocket + WebCodecs) where the browser can decode it (WebCodecs needs localhost or HTTPS), otherwise MJPEG.
+// H.264 (WebSocket + WebCodecs) where the browser can decode it (WebCodecs needs localhost or HTTPS), otherwise MJPEG (fetch).
+// Both are drawn on a canvas and connect again when the connection is lost, the label shows that the picture is old meanwhile.
 
 // Header of an H.264 message (little endian), see H264Header.cs
 const HEADER_VERSION = 1;
@@ -15,21 +16,56 @@ const MAX_DECODE_QUEUE = 3;
 // The server ignores the requests within 500 ms
 const KEY_FRAME_REQUEST_INTERVAL = 500;
 
+// WebSocketCloseStatus.InternalServerError: the server has no encoder
+const CLOSE_NO_ENCODER = 1011;
+
+// Parts of the MJPEG stream, see StreamEndpoints.cs (the first header has no line break before it)
+const MJPEG_DELIMITER = new TextEncoder().encode('\r\n--frame\r\nContent-Type: image/jpeg\r\n\r\n');
+
+const MJPEG_FIRST_HEADER_LENGTH = MJPEG_DELIMITER.length - 2;
+
+const MJPEG_BUFFER_SIZE = 256 * 1024;
+
 const RECONNECT_DELAY = 1000;
+
+// No data for this time: the label tells that the picture is old (the first frame takes about 3 seconds when the camera is closed)
+const STALE_TIMEOUT = 5000;
+
+// No data for this time: the connection is lost without a close (for example the network went down) or the camera sends nothing
+const STALL_TIMEOUT = 15000;
+
+const STALL_CHECK_INTERVAL = 1000;
+
+const OFFLINE_TEXT = 'Reconnecting';
 
 const views = new Map();
 
 // h264Url: null when H.264 is disabled
 export function start(container, key, mjpegUrl, h264Url) {
     stop(key);
+
+    // The element is gone (an error here would end the Blazor circuit)
+    if (container === null) {
+        return;
+    }
+
     const view = {
         container,
         mjpegUrl,
         h264Url,
-        image: null,
         canvas: null,
         context: null,
         label: document.createElement('span'),
+        mode: '',
+        offline: false,
+        // Time of the last data from the server
+        lastData: performance.now(),
+        watchdog: 0,
+        // MJPEG
+        abort: null,
+        nextImage: null,
+        drawing: false,
+        // H.264
         socket: null,
         decoder: null,
         // Configuration of the decoder
@@ -42,11 +78,12 @@ export function start(container, key, mjpegUrl, h264Url) {
         lastKeyFrameRequest: 0,
         nextTimestamp: 0,
         stopped: false,
-        stats: { mode: '', received: 0, bytes: 0, keyFrames: 0, drawn: 0, dropped: 0, codec: null }
+        stats: { mode: '', received: 0, bytes: 0, keyFrames: 0, drawn: 0, dropped: 0, reconnects: 0, codec: null }
     };
     view.label.className = 'live-mode';
     container.appendChild(view.label);
     views.set(key, view);
+    view.watchdog = setInterval(() => checkStall(view), STALL_CHECK_INTERVAL);
 
     if ((h264Url !== null) && window.isSecureContext && (typeof VideoDecoder !== 'undefined')) {
         startH264(view);
@@ -55,7 +92,7 @@ export function start(container, key, mjpegUrl, h264Url) {
     }
 }
 
-// Removing the source stops the request (an image only removed from the page may keep loading)
+// Stopping the request and the socket here: the server keeps the camera open while they are connected
 export function stop(key) {
     const view = views.get(key);
     if (view === undefined) {
@@ -64,55 +101,30 @@ export function stop(key) {
 
     views.delete(key);
     view.stopped = true;
+    clearInterval(view.watchdog);
+    stopMjpeg(view);
     stopH264(view);
-    if (view.image !== null) {
-        view.image.removeAttribute('src');
-        view.image.remove();
-        view.image = null;
-    }
     view.label.remove();
 }
 
 // Counters of the views (for checking the views)
 export function getStats() {
-    return [...views.values()].map((x) => ({ ...x.stats, width: x.width, height: x.height }));
+    return [...views.values()].map((x) => ({ ...x.stats, width: x.width, height: x.height, offline: x.offline, url: x.mode === 'H.264' ? x.h264Url : x.mjpegUrl }));
 }
 
 //--------------------------------------------------------------------------------
-// MJPEG
+// View
 //--------------------------------------------------------------------------------
 
-function startMjpeg(view) {
-    const image = document.createElement('img');
-    image.className = 'live-image';
-    image.alt = 'Live';
-    image.src = view.mjpegUrl;
-    view.container.appendChild(image);
-    view.image = image;
-    setMode(view, 'MJPEG');
-}
-
-function setMode(view, mode) {
-    view.label.textContent = mode;
-    view.stats.mode = mode;
-}
-
-//--------------------------------------------------------------------------------
-// H.264
-//--------------------------------------------------------------------------------
-
-function startH264(view) {
+function createCanvas(view) {
     view.canvas = document.createElement('canvas');
     view.canvas.className = 'live-image';
+    view.canvas.setAttribute('aria-label', 'Live');
     view.context = view.canvas.getContext('2d');
     view.container.appendChild(view.canvas);
-    setMode(view, 'H.264');
-    openSocket(view);
 }
 
-function stopH264(view) {
-    closeSocket(view);
-    resetDecoder(view);
+function removeCanvas(view) {
     if (view.canvas !== null) {
         view.canvas.remove();
         view.canvas = null;
@@ -120,9 +132,232 @@ function stopH264(view) {
     }
 }
 
-// The browser cannot decode the stream: MJPEG instead (the connection is closed, so the server stops encoding)
+function draw(view, image, width, height) {
+    if ((view.canvas.width !== width) || (view.canvas.height !== height)) {
+        view.canvas.width = width;
+        view.canvas.height = height;
+    }
+    view.context.drawImage(image, 0, 0);
+    view.stats.drawn++;
+}
+
+function setMode(view, mode) {
+    view.mode = mode;
+    view.stats.mode = mode;
+    view.offline = false;
+    view.label.textContent = mode;
+    view.label.classList.remove('offline');
+    view.lastData = performance.now();
+}
+
+// The picture stays on the canvas, the label tells that it is old
+function setOffline(view) {
+    if (!view.offline) {
+        view.offline = true;
+        view.label.textContent = OFFLINE_TEXT;
+        view.label.classList.add('offline');
+    }
+}
+
+function onData(view) {
+    view.lastData = performance.now();
+    if (view.offline) {
+        view.offline = false;
+        view.label.textContent = view.mode;
+        view.label.classList.remove('offline');
+    }
+}
+
+// The connection is closed after the stall timeout, the stream connects again
+function checkStall(view) {
+    const elapsed = performance.now() - view.lastData;
+    if (elapsed < STALE_TIMEOUT) {
+        return;
+    }
+
+    setOffline(view);
+    if (elapsed < STALL_TIMEOUT) {
+        return;
+    }
+
+    view.lastData = performance.now();
+    if (view.abort !== null) {
+        view.abort.abort();
+    } else if (view.socket !== null) {
+        closeSocket(view);
+        resetDecoder(view);
+        reconnectSocket(view);
+    }
+}
+
+function delay(milliseconds) {
+    return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+//--------------------------------------------------------------------------------
+// MJPEG
+//--------------------------------------------------------------------------------
+
+function startMjpeg(view) {
+    createCanvas(view);
+    setMode(view, 'MJPEG');
+    runMjpeg(view);
+}
+
+function stopMjpeg(view) {
+    if (view.abort !== null) {
+        view.abort.abort();
+        view.abort = null;
+    }
+    view.nextImage = null;
+    removeCanvas(view);
+}
+
+async function runMjpeg(view) {
+    while (!view.stopped) {
+        view.abort = new AbortController();
+        try {
+            await readMjpeg(view, view.abort.signal);
+        } catch (e) {
+            if (e.name !== 'AbortError') {
+                console.warn('MJPEG connection lost.', e);
+            }
+        }
+
+        if (!view.stopped) {
+            setOffline(view);
+            view.stats.reconnects++;
+            await delay(RECONNECT_DELAY);
+        }
+    }
+}
+
+// Until the stream ends. The parts are split by the delimiter, which follows each JPEG (a part is complete when the next one starts).
+async function readMjpeg(view, signal) {
+    const response = await fetch(`${view.mjpegUrl}?raw`, { signal, cache: 'no-store' });
+    if (!response.ok) {
+        throw new Error(`Status ${response.status}`);
+    }
+
+    const reader = response.body.getReader();
+    let buffer = new Uint8Array(MJPEG_BUFFER_SIZE);
+    let length = 0;
+    // Start of the current JPEG, -1 until the first header has arrived
+    let start = -1;
+    // Position to look for the next delimiter from
+    let search = 0;
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+            return;
+        }
+
+        view.stats.bytes += value.length;
+        onData(view);
+
+        // A part larger than the buffer makes it grow
+        if (length + value.length > buffer.length) {
+            const larger = new Uint8Array(Math.max(buffer.length * 2, length + value.length));
+            larger.set(buffer.subarray(0, length));
+            buffer = larger;
+        }
+        buffer.set(value, length);
+        length += value.length;
+
+        if (start < 0) {
+            if (length < MJPEG_FIRST_HEADER_LENGTH) {
+                continue;
+            }
+            start = MJPEG_FIRST_HEADER_LENGTH;
+            search = start;
+        }
+
+        while (true) {
+            const end = findDelimiter(buffer, search, length);
+            if (end < 0) {
+                search = Math.max(start, length - MJPEG_DELIMITER.length + 1);
+                break;
+            }
+
+            view.stats.received++;
+            showJpeg(view, buffer.slice(start, end));
+            start = end + MJPEG_DELIMITER.length;
+            search = start;
+        }
+
+        // The rest is the current part
+        if (start > 0) {
+            buffer.copyWithin(0, start, length);
+            length -= start;
+            search -= start;
+            start = 0;
+        }
+    }
+}
+
+function findDelimiter(buffer, from, length) {
+    const last = length - MJPEG_DELIMITER.length;
+    let index = buffer.indexOf(MJPEG_DELIMITER[0], from);
+    while ((index >= 0) && (index <= last)) {
+        let matched = 1;
+        while ((matched < MJPEG_DELIMITER.length) && (buffer[index + matched] === MJPEG_DELIMITER[matched])) {
+            matched++;
+        }
+        if (matched === MJPEG_DELIMITER.length) {
+            return index;
+        }
+        index = buffer.indexOf(MJPEG_DELIMITER[0], index + 1);
+    }
+    return -1;
+}
+
+// Only the latest image is decoded when the decoder is slower than the stream
+function showJpeg(view, data) {
+    view.nextImage = new Blob([data], { type: 'image/jpeg' });
+    if (!view.drawing) {
+        drawImages(view);
+    }
+}
+
+async function drawImages(view) {
+    view.drawing = true;
+    while ((view.nextImage !== null) && !view.stopped) {
+        const blob = view.nextImage;
+        view.nextImage = null;
+        try {
+            const image = await createImageBitmap(blob);
+            if (view.canvas !== null) {
+                view.width = image.width;
+                view.height = image.height;
+                draw(view, image, image.width, image.height);
+            }
+            image.close();
+        } catch (e) {
+            console.warn('JPEG decode failed.', e);
+        }
+    }
+    view.drawing = false;
+}
+
+//--------------------------------------------------------------------------------
+// H.264
+//--------------------------------------------------------------------------------
+
+function startH264(view) {
+    createCanvas(view);
+    setMode(view, 'H.264');
+    openSocket(view);
+}
+
+function stopH264(view) {
+    closeSocket(view);
+    resetDecoder(view);
+    removeCanvas(view);
+}
+
+// The stream cannot be shown: MJPEG instead (the connection is closed, so the server stops encoding)
 function fallBack(view, e) {
-    console.warn('H.264 is not supported, MJPEG is used.', e);
+    console.warn('H.264 is not available, MJPEG is used.', e);
     stopH264(view);
     if (!view.stopped) {
         startMjpeg(view);
@@ -136,24 +371,36 @@ function openSocket(view) {
     socket.binaryType = 'arraybuffer';
     socket.onmessage = (e) => {
         if (view.socket === socket) {
+            onData(view);
             receive(view, e.data);
         }
     };
-    socket.onclose = () => {
+    socket.onclose = (e) => {
         if (view.socket !== socket) {
             return;
         }
 
-        // The server sends the frames from a key frame after the reconnection
         view.socket = null;
         resetDecoder(view);
-        setTimeout(() => {
-            if (!view.stopped && (view.canvas !== null) && (view.socket === null)) {
-                openSocket(view);
-            }
-        }, RECONNECT_DELAY);
+        if (e.code === CLOSE_NO_ENCODER) {
+            fallBack(view, 'The server has no encoder.');
+            return;
+        }
+
+        // The server sends the frames from a key frame after the reconnection
+        setOffline(view);
+        reconnectSocket(view);
     };
     view.socket = socket;
+}
+
+function reconnectSocket(view) {
+    view.stats.reconnects++;
+    setTimeout(() => {
+        if (!view.stopped && (view.canvas !== null) && (view.socket === null)) {
+            openSocket(view);
+        }
+    }, RECONNECT_DELAY);
 }
 
 // Clears the socket first, so that it is not opened again
@@ -202,12 +449,7 @@ function createDecoder(view) {
     return new VideoDecoder({
         output: (frame) => {
             if (view.canvas !== null) {
-                if ((view.canvas.width !== frame.displayWidth) || (view.canvas.height !== frame.displayHeight)) {
-                    view.canvas.width = frame.displayWidth;
-                    view.canvas.height = frame.displayHeight;
-                }
-                view.context.drawImage(frame, 0, 0);
-                view.stats.drawn++;
+                draw(view, frame, frame.displayWidth, frame.displayHeight);
             }
             frame.close();
         },

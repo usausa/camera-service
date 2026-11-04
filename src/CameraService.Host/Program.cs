@@ -4,50 +4,63 @@ using Microsoft.Extensions.Hosting.WindowsServices;
 // Configure builder
 //--------------------------------------------------------------------------------
 Directory.SetCurrentDirectory(AppContext.BaseDirectory);
-var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+
+// A service has no console: the reason of a failed start goes to the log file
+ApplicationExtensions.ConfigureStartupLogging();
+try
 {
-    Args = args,
-    // A service starts in the system folder, the settings are next to the executable
-    ContentRootPath = WindowsServiceHelpers.IsWindowsService() ? AppContext.BaseDirectory : default
-});
+    var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+    {
+        Args = args,
+        // A service starts in the system folder, the settings are next to the executable
+        ContentRootPath = WindowsServiceHelpers.IsWindowsService() ? AppContext.BaseDirectory : default
+    });
 
-// Host
-builder.ConfigureHost();
+    // Host
+    builder.ConfigureHost();
 
-// Logging
-builder.ConfigureLogging();
+    // Logging
+    builder.ConfigureLogging();
 
-// Http
-builder.ConfigureHttp();
+    // Http
+    builder.ConfigureHttp();
 
-// Blazor
-builder.ConfigureBlazor();
+    // Blazor
+    builder.ConfigureBlazor();
 
-// Health
-builder.ConfigureHealth();
+    // Health
+    builder.ConfigureHealth();
 
-// Components
-builder.ConfigureComponents();
+    // Components
+    builder.ConfigureComponents();
 
-//--------------------------------------------------------------------------------
-// Configure the HTTP request pipeline
-//--------------------------------------------------------------------------------
-var app = builder.Build();
+    //--------------------------------------------------------------------------------
+    // Configure the HTTP request pipeline
+    //--------------------------------------------------------------------------------
+    var app = builder.Build();
 
-// Startup information
-app.LogStartupInformation();
+    // Startup information
+    app.LogStartupInformation();
 
-// Stop
-app.UseStoppingGate();
+    // Stop
+    app.UseStoppingGate();
 
-// Antiforgery (Blazor)
-app.UseAntiforgery();
+    // Antiforgery (Blazor)
+    app.UseAntiforgery();
 
-// End point
-app.MapEndpoints();
+    // End point
+    app.MapEndpoints();
 
-// Blazor
-app.MapBlazor();
+    // Blazor
+    app.MapBlazor();
 
-// Run
-await app.RunAsync();
+    // Run
+    await app.RunAsync();
+}
+catch (Exception ex) when (ex is not OperationCanceledException)
+{
+    ApplicationExtensions.LogServiceFailure(ex);
+    return 1;
+}
+
+return 0;

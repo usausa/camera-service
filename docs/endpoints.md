@@ -4,7 +4,7 @@
 
 | パス | 内容 |
 |:--|:--|
-| `/cameras/{id}/stream.mjpg` | MJPEG([📡 配信](streaming.md)) |
+| `/cameras/{id}/stream.mjpg` | MJPEG([📡 配信](streaming.md))。`?raw` を付けると中身は同じで `Content-Type` が `application/octet-stream`(画面の `fetch` が使う。ブラウザーによっては、画像以外の multipart の応答を断る) |
 | `/cameras/{id}/h264` | H.264 の WebSocket(`Stream:H264:Enable` が `false` なら 404、WebSocket でない要求は 400) |
 | `/cameras/{id}/snapshot.jpg` | 静止画。カメラが閉じていれば開いて 1 枚 |
 | `/api/images/{id}` | 保存画像のある日付(`yyyyMMdd`、新しい順) |
@@ -20,6 +20,7 @@
 
 - サーバーからは、フレームごとにバイナリーのメッセージ(ヘッダー + Annex B のアクセスユニット)を送る。最初のメッセージはキーフレーム
 - クライアントからのテキストのメッセージ(中身は何でもよい)は、キーフレームの要求
+- サーバーが閉じるときの状態: エンコーダーを作れない・動かなくなった `InternalServerError`(1011。画面は MJPEG に切り替える)、止めるとき `EndpointUnavailable`(1001。画面はつなぎ直す)
 
 ヘッダー(リトルエンディアン、32 バイト。tool-camera のヘッダーから検出の部分を除いた形)
 
@@ -54,7 +55,8 @@
 | 結果 | HTTP | 条件 |
 |:--|:--|:--|
 | `Healthy` | 200 | 下のどれでもない |
-| `Degraded` | 200 | 保存先のドライブの空き容量が `Retention:MinFreeSpace` より少ない |
-| `Unhealthy` | 503 | カメラが失敗の状態(開けない、フレームが止まった)、保存の失敗、保存先に書けない(起動時に確かめ、保存できたら戻る) |
+| `Degraded` | 200 | 保存先のドライブの空き容量が `Retention:MinFreeSpace` より少ない。H.264 のエンコーダーを作れない(ライブは MJPEG で見られる) |
+| `Unhealthy` | 503 | カメラが失敗の状態(開けない、閉じられない、フレームが止まった。開き直している間も、次にフレームが来るまで続く)、保存の失敗、保存先に書けない(起動時に確かめ、保存できたら戻る) |
 
 - カメラは使うときだけ開くので、誰も使っていないカメラは最後の状態のまま
+- 結果はログに出さない(`Microsoft.Extensions.Diagnostics.HealthChecks` を `Fatal` にしている)。呼ぶたびに行が増えるのを避けるため。カメラの失敗、保存の失敗、空き容量の不足は、それぞれのログに出る

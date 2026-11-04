@@ -40,7 +40,7 @@ else
             </div>
         </div>
 
-        @if (camera.ErrorMessage is { } error)
+        @if ((camera.ErrorMessage ?? camera.H264?.ErrorMessage) is { } error)
         {
             <div class="alert">
                 <i class="bi bi-exclamation-triangle-fill"></i>
@@ -51,7 +51,8 @@ else
         <div class="screen">
             @if (live)
             {
-                <LiveView CameraId="@camera.Id" H264="camera.H264 is not null" />
+                @* A new view for another camera of the same page (moving through the history) *@
+                <LiveView @key="camera.Id" CameraId="@camera.Id" H264="camera.H264 is not null" />
             }
             else
             {

@@ -14,6 +14,8 @@ public sealed partial class LiveView : IAsyncDisposable
 
     private IJSObjectReference? module;
 
+    private bool disposed;
+
     //--------------------------------------------------------------------------------
     // Property
     //--------------------------------------------------------------------------------
@@ -36,15 +38,33 @@ public sealed partial class LiveView : IAsyncDisposable
     // Not while prerendering, so that the stream starts once
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender)
+        if (!firstRender)
         {
-            module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/camera.js");
+            return;
+        }
+
+        try
+        {
+            var imported = await JS.InvokeAsync<IJSObjectReference>("import", "./js/camera.js");
+            if (disposed)
+            {
+                // Removed while the script was loaded, the element is gone
+                await imported.DisposeAsync();
+                return;
+            }
+
+            module = imported;
             await module.InvokeVoidAsync("start", container, key, Links.Stream(CameraId), H264 ? Links.H264(CameraId) : null);
+        }
+        catch (JSDisconnectedException)
+        {
+            // The page is closed
         }
     }
 
     public async ValueTask DisposeAsync()
     {
+        disposed = true;
         if (module is null)
         {
             return;

@@ -97,7 +97,14 @@ public sealed class CameraManager : IHostedService, IAsyncDisposable
 
         if (enumerationTask is not null)
         {
-            await enumerationTask.ConfigureAwait(false);
+            try
+            {
+                await enumerationTask.WaitAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                // A search for the devices that hangs does not keep the service from stopping
+            }
         }
     }
 

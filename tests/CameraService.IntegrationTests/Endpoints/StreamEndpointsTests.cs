@@ -26,6 +26,23 @@ public sealed class StreamEndpointsTests
             Assert.All(parts, static x => Assert.Equal((TestCameraProvider.Width, TestCameraProvider.Height), MjpegReader.GetJpegSize(x)));
         });
 
+    // The viewer reads the same stream with fetch, a browser may refuse a multipart response for anything other than an image
+    [Fact]
+    public Task RawMjpegHasOtherContentType() =>
+        ServiceTestServer.RunAsync(null, static async (server, cancellationToken) =>
+        {
+            // Act
+            using var response = await server.Client.GetAsync(server.GetUri($"{StreamPath}?raw"), HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(true);
+            var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(true);
+            var reader = new MjpegReader(stream);
+            var parts = await reader.ReadPartsAsync(3, cancellationToken).ConfigureAwait(true);
+
+            // Assert
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal("application/octet-stream", response.Content.Headers.ContentType?.MediaType);
+            Assert.All(parts, static x => Assert.Equal((TestCameraProvider.Width, TestCameraProvider.Height), MjpegReader.GetJpegSize(x)));
+        });
+
     [Fact]
     public Task SnapshotReturnsJpeg() =>
         ServiceTestServer.RunAsync(null, static async (server, cancellationToken) =>

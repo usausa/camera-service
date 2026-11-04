@@ -36,11 +36,32 @@ internal sealed class TestCameraProvider : ICameraProvider
     // Number of the captures created (each open of the camera creates one)
     public int CreatedCount => Volatile.Read(ref createdCount);
 
-    public Task<IReadOnlyList<VideoDevice>> GetDevicesAsync() => Task.FromResult<IReadOnlyList<VideoDevice>>(Devices);
+    // The search for the devices waits for this task, so that a test can see a camera in the Opening state
+    // (the search takes about 0.7 seconds on a PC, and it runs again each time a camera opens after a failure)
+    public Task DevicesHold { get; set; } = Task.CompletedTask;
+
+    // The next captures open without an error and send nothing
+    public bool SendsNoFrames { get; set; }
+
+    // The next capture fails while it starts
+    public bool FailsNextStart { get; set; }
+
+    public async Task<IReadOnlyList<VideoDevice>> GetDevicesAsync()
+    {
+        await DevicesHold.ConfigureAwait(false);
+        return Devices;
+    }
 
     public IVideoCapture CreateCapture(string deviceId)
     {
         var created = new TestCapture();
+        if (SendsNoFrames)
+        {
+            created.Pause();
+        }
+
+        created.StartFails = FailsNextStart;
+        FailsNextStart = false;
         Volatile.Write(ref capture, created);
         Interlocked.Increment(ref createdCount);
         return created;
@@ -73,6 +94,12 @@ internal sealed class TestCapture : IVideoCapture
 
     public bool IsDisposed => Volatile.Read(ref disposed) != 0;
 
+    // Closing throws after the capture is released, as a capture whose device was removed
+    public bool CloseFails { get; set; }
+
+    // Starting raises the failure and throws, as a capture whose device cannot start
+    public bool StartFails { get; set; }
+
     public void Dispose()
     {
         if (Interlocked.Exchange(ref disposed, 1) != 0)
@@ -88,7 +115,7 @@ internal sealed class TestCapture : IVideoCapture
     public ValueTask DisposeAsync()
     {
         Dispose();
-        return ValueTask.CompletedTask;
+        return CloseFails ? ValueTask.FromException(new InvalidOperationException("Test close failure.")) : ValueTask.CompletedTask;
     }
 
     public Task OpenAsync(VideoFormat format, VideoPixelFormat outputPixelFormat = VideoPixelFormat.Unknown)
@@ -105,6 +132,12 @@ internal sealed class TestCapture : IVideoCapture
 
     public Task StartAsync()
     {
+        if (StartFails)
+        {
+            Fail();
+            return Task.FromException(new InvalidOperationException("Test start failure."));
+        }
+
         thread = new Thread(Run)
         {
             IsBackground = true,

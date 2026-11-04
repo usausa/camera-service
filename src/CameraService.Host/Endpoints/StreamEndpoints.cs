@@ -22,6 +22,11 @@ public static class StreamEndpoints
 
     private const string MjpegContentType = "multipart/x-mixed-replace; boundary=" + Boundary;
 
+    // Parameter of the viewer, which reads the same stream with fetch: a browser may refuse a multipart response for anything other than an image
+    private const string RawParameter = "raw";
+
+    private const string RawContentType = "application/octet-stream";
+
     // A browser shows a part when the header of the next part arrives, so the boundary and the next part header follow each frame
     private static readonly byte[] PartDelimiter = Encoding.ASCII.GetBytes($"\r\n--{Boundary}\r\nContent-Type: image/jpeg\r\n\r\n");
 
@@ -54,7 +59,7 @@ public static class StreamEndpoints
         var connection = context.Connection;
 
         var response = context.Response;
-        response.ContentType = MjpegContentType;
+        response.ContentType = context.Request.Query.ContainsKey(RawParameter) ? RawContentType : MjpegContentType;
         response.Headers.CacheControl = NoCache;
         context.Features.Get<IHttpResponseBodyFeature>()?.DisableBuffering();
 
@@ -121,7 +126,8 @@ public static class StreamEndpoints
         var log = loggerFactory.CreateLogger(typeof(StreamEndpoints));
         var connection = context.Connection;
 
-        using var client = new H264Connection(await context.WebSockets.AcceptWebSocketAsync(), h264, context.RequestAborted, lifetime.ApplicationStopping);
+        var encoderFailure = h264.PrepareClient();
+        using var client = new H264Connection(await context.WebSockets.AcceptWebSocketAsync(), h264, context.RequestAborted, lifetime.ApplicationStopping, encoderFailure);
         // The camera stays open while the client is connected
         using var lease = camera.Channel.Acquire();
         using var subscription = h264.Hub.Subscribe(client.Stopping);
@@ -176,7 +182,7 @@ public static class StreamEndpoints
         }
     }
 
-    // A client of the H.264 stream: the frames are sent until the client closes or the application stops,
+    // A client of the H.264 stream: the frames are sent until the client closes, the encoder fails or the application stops,
     // and a text message from the client asks for a key frame
     private sealed class H264Connection : IDisposable
     {
@@ -186,7 +192,9 @@ public static class StreamEndpoints
 
         private readonly CancellationToken applicationStopping;
 
-        // Canceled when the client closes or the application stops
+        private readonly CancellationToken encoderFailure;
+
+        // Canceled when the client closes, the encoder fails or the application stops
         private readonly CancellationTokenSource stopping;
 
         // Ends the wait for the close from the client
@@ -194,12 +202,13 @@ public static class StreamEndpoints
 
         public CancellationToken Stopping => stopping.Token;
 
-        public H264Connection(WebSocket socket, H264Publisher h264, CancellationToken requestAborted, CancellationToken applicationStopping)
+        public H264Connection(WebSocket socket, H264Publisher h264, CancellationToken requestAborted, CancellationToken applicationStopping, CancellationToken encoderFailure)
         {
             this.socket = socket;
             this.h264 = h264;
             this.applicationStopping = applicationStopping;
-            stopping = CancellationTokenSource.CreateLinkedTokenSource(requestAborted, applicationStopping);
+            this.encoderFailure = encoderFailure;
+            stopping = CancellationTokenSource.CreateLinkedTokenSource(requestAborted, applicationStopping, encoderFailure);
         }
 
         public void Dispose()
@@ -215,7 +224,7 @@ public static class StreamEndpoints
             try
             {
                 await SendAsync(subscription);
-                await CloseOutputAsync(applicationStopping.IsCancellationRequested ? WebSocketCloseStatus.EndpointUnavailable : WebSocketCloseStatus.NormalClosure);
+                await CloseOutputAsync(GetCloseStatus());
             }
             finally
             {
@@ -223,6 +232,17 @@ public static class StreamEndpoints
                 closing.CancelAfter(CloseTimeout);
                 await receiveTask;
             }
+        }
+
+        // InternalServerError: there is no encoder, the viewer uses MJPEG instead of connecting again
+        private WebSocketCloseStatus GetCloseStatus()
+        {
+            if (applicationStopping.IsCancellationRequested)
+            {
+                return WebSocketCloseStatus.EndpointUnavailable;
+            }
+
+            return encoderFailure.IsCancellationRequested ? WebSocketCloseStatus.InternalServerError : WebSocketCloseStatus.NormalClosure;
         }
 
         // Receives until the client closes, then stops the sending
