@@ -6,12 +6,13 @@ using Microsoft.Extensions.DependencyInjection;
 
 public static class WindowsPlatformExtensions
 {
-    // Cameras (MediaFrameReader) and images (WIC) of Windows
+    // Cameras (MediaFrameReader), images (WIC) and H.264 (Media Foundation) of Windows
     public static IServiceCollection AddWindowsPlatform(this IServiceCollection services)
     {
         services.AddSingleton<ICameraProvider, WindowsCameraProvider>();
         services.AddSingleton<IJpegEncoderFactory, JpegEncoderFactory>();
         services.AddSingleton<IThumbnailGenerator, ThumbnailGenerator>();
+        services.AddSingleton<IH264EncoderFactory, H264EncoderFactory>();
         return services;
     }
 }

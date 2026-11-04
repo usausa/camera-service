@@ -12,6 +12,9 @@ public sealed class FrameHub
 
     private EncodedFrame? latest;
 
+    // Kept after Clear, the frames before a subscription are not counted as skipped
+    private long publishedIndex;
+
     private long sentFrames;
 
     private long skippedFrames;
@@ -29,7 +32,7 @@ public sealed class FrameHub
     {
         lock (sync)
         {
-            var subscription = new FrameSubscription(this, latest?.Index ?? 0, cancellationToken);
+            var subscription = new FrameSubscription(this, publishedIndex, cancellationToken);
             subscriptions = [.. subscriptions, subscription];
             return subscription;
         }
@@ -51,6 +54,7 @@ public sealed class FrameHub
         {
             previous = latest;
             latest = frame;
+            publishedIndex = frame.Index;
             foreach (var subscription in subscriptions)
             {
                 if (subscription.IsWaiting)
@@ -111,6 +115,8 @@ public sealed class FrameHub
         Interlocked.Increment(ref sentFrames);
         Interlocked.Add(ref skippedFrames, skipped);
     }
+
+    internal void AddSkipped(long skipped) => Interlocked.Add(ref skippedFrames, skipped);
 }
 
 // Used by one connection, waits without allocation
@@ -176,6 +182,15 @@ public sealed class FrameSubscription : IValueTaskSource<EncodedFrame>, IDisposa
         SentFrames++;
         SkippedFrames += skipped;
         hub.AddSent(skipped);
+    }
+
+    // The frame is not sent (an H.264 frame while the client waits for a key frame)
+    public void Skip(EncodedFrame frame)
+    {
+        var skipped = frame.Index - LastIndex;
+        LastIndex = frame.Index;
+        SkippedFrames += skipped;
+        hub.AddSkipped(skipped);
     }
 
     private void OnCanceled(CancellationToken token) => hub.Cancel(this, token);

@@ -410,7 +410,20 @@ code {
 }
 
 .live-view {
+    position: relative;
     width: 100%;
+}
+
+.live-mode {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    padding: 2px 8px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #ffffff;
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 4px;
 }
 
 .live-image,
@@ -658,6 +671,11 @@ code {
 
 .error-text {
     color: var(--cs-danger);
+}
+
+.sub-text {
+    font-size: 0.75rem;
+    color: var(--cs-text-muted);
 }
 
 /* ============================================

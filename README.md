@@ -1,13 +1,13 @@
 # 📷 camera-service
 
-カメラの映像をブラウザーへ配信する、簡易的な監視カメラの Windows サービス。見ている人がいないときはカメラを閉じる。カメラの制御には MediaFrameReader(Windows Runtime)を使う。
+カメラの映像をブラウザーへ配信する、簡易的な監視カメラの Windows サービス。見ている人がいないときはカメラもエンコーダーも止める。カメラの制御には MediaFrameReader(Windows Runtime)を使う。
 
 ## ✨ できること
 
 | 機能 | 内容 |
 |:--|:--|
 | 🖥️ 画面 | カメラ一覧、カメラ(ライブ / 静止画)、保存画像、状態 |
-| 🎥 ライブ | MJPEG で配信(`img` で表示できる) |
+| 🎥 ライブ | H.264(WebSocket + WebCodecs、ハードウェアのエンコーダー)。使えないブラウザーでは MJPEG |
 | 🖼️ 静止画 | その時点の 1 枚(JPEG) |
 | 🗂️ 保存画像の閲覧 | 日付 → 時間 → サムネイル → 拡大。←/→ で前後、タイムラプス再生、ダウンロード |
 | 💾 定期保存 | カメラごとに Cron の時刻(現地時刻)で静止画を保存(`yyyyMMdd\HHmmss.jpg`) |
@@ -23,7 +23,7 @@
 | プロジェクト | 内容 |
 |:--|:--|
 | `src/CameraService.Core` | 映像の型とインターフェース、YUV の変換、フレームの共有、日時の焼き込み、保存の名前と削除の対象(OS に依存しない) |
-| `src/CameraService.Platform.Windows` | Windows のカメラ(MediaFrameReader)と JPEG・サムネイル(WIC) |
+| `src/CameraService.Platform.Windows` | Windows のカメラ(MediaFrameReader)、JPEG・サムネイル(WIC)、H.264(Media Foundation) |
 | `src/CameraService.Host` | サービス本体(ASP.NET Core、Blazor Server) |
 | `tests/CameraService.UnitTests` | Core と Platform.Windows のテスト |
 | `tests/CameraService.IntegrationTests` | テスト用のカメラでサーバーを動かすテスト |

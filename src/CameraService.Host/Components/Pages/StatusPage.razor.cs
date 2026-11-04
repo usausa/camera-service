@@ -86,14 +86,22 @@ public sealed partial class StatusPage : IDisposable
         }
     }
 
-    // The frame rates are counted between the updates
+    // The frame rates and the bitrates are counted between the updates
     private sealed class StatusRow
     {
+        private const double BitsPerMegabit = 1_000_000;
+
         private long timestamp;
 
         private long capturedFrames;
 
-        private long encodedFrames;
+        private long jpegFrames;
+
+        private long jpegBytes;
+
+        private long h264Frames;
+
+        private long h264Bytes;
 
         public Camera Camera { get; }
 
@@ -101,7 +109,15 @@ public sealed partial class StatusPage : IDisposable
 
         public double CaptureRate { get; private set; }
 
-        public double StreamRate { get; private set; }
+        public double JpegRate { get; private set; }
+
+        // Mbps
+        public double JpegBitrate { get; private set; }
+
+        public double H264Rate { get; private set; }
+
+        // Mbps
+        public double H264Bitrate { get; private set; }
 
         public long? FreeSpace { get; private set; }
 
@@ -115,17 +131,26 @@ public sealed partial class StatusPage : IDisposable
         {
             var now = Stopwatch.GetTimestamp();
             var captured = Camera.Channel.CapturedFrames;
-            var encoded = Camera.Jpeg.EncodedFrames;
+            var jpegFrameCount = Camera.Jpeg.EncodedFrames;
+            var jpegByteCount = Camera.Jpeg.EncodedBytes;
+            var h264FrameCount = Camera.H264?.EncodedFrames ?? 0;
+            var h264ByteCount = Camera.H264?.EncodedBytes ?? 0;
             if (timestamp != 0)
             {
                 var seconds = Stopwatch.GetElapsedTime(timestamp, now).TotalSeconds;
                 CaptureRate = (captured - capturedFrames) / seconds;
-                StreamRate = (encoded - encodedFrames) / seconds;
+                JpegRate = (jpegFrameCount - jpegFrames) / seconds;
+                JpegBitrate = (jpegByteCount - jpegBytes) * 8 / BitsPerMegabit / seconds;
+                H264Rate = (h264FrameCount - h264Frames) / seconds;
+                H264Bitrate = (h264ByteCount - h264Bytes) * 8 / BitsPerMegabit / seconds;
             }
 
             timestamp = now;
             capturedFrames = captured;
-            encodedFrames = encoded;
+            jpegFrames = jpegFrameCount;
+            jpegBytes = jpegByteCount;
+            h264Frames = h264FrameCount;
+            h264Bytes = h264ByteCount;
             if (Camera.Snapshot?.LastSaved is { } saved)
             {
                 Latest = (DateOnly.FromDateTime(saved.ScheduledTime.DateTime), TimeOnly.FromDateTime(saved.ScheduledTime.DateTime));

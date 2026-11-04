@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 using CameraService.Core;
 using CameraService.Host.Settings;
 
-// The configured cameras, the timer runs the steps (open, close, retry, watchdog) of each camera
+// The configured cameras, the timer runs the steps (open, close, retry, watchdog) of each camera and the idle release of its H.264 encoder
 public sealed class CameraManager : IHostedService, IAsyncDisposable
 {
     private static readonly TimeSpan TickInterval = TimeSpan.FromMilliseconds(500);
@@ -30,9 +30,11 @@ public sealed class CameraManager : IHostedService, IAsyncDisposable
         ILoggerFactory loggerFactory,
         ICameraProvider provider,
         IJpegEncoderFactory encoderFactory,
+        IH264EncoderFactory h264EncoderFactory,
         LocalTimeProvider timeProvider,
         CameraSetting cameraSetting,
         StreamSetting streamSetting,
+        H264Setting h264Setting,
         StorageSetting storageSetting,
         IOptions<List<CameraDeviceSetting>> devices)
     {
@@ -40,14 +42,16 @@ public sealed class CameraManager : IHostedService, IAsyncDisposable
         this.provider = provider;
         var channelLog = loggerFactory.CreateLogger<CameraChannel>();
         var publisherLog = loggerFactory.CreateLogger<JpegPublisher>();
+        var h264Log = loggerFactory.CreateLogger<H264Publisher>();
         var snapshotLog = loggerFactory.CreateLogger<SnapshotWriter>();
         var prepareTime = TimeSpan.FromMilliseconds(cameraSetting.WarmupTime) + OpenAllowance;
         cameras = [.. devices.Value.Select(x =>
         {
             var channel = new CameraChannel(channelLog, provider, x, cameraSetting);
+            var h264 = h264Setting.Enable ? new H264Publisher(h264Log, channel, h264EncoderFactory, h264Setting) : null;
             var folder = SnapshotStorage.GetCameraFolder(AppContext.BaseDirectory, storageSetting.Path, x.Snapshot.Path, x.Id);
             var snapshot = x.Snapshot.Enable ? new SnapshotWriter(snapshotLog, channel, encoderFactory, timeProvider, x.Snapshot, folder, prepareTime) : null;
-            return new Camera(x, channel, new JpegPublisher(publisherLog, channel, encoderFactory, streamSetting), folder, snapshot);
+            return new Camera(x, channel, new JpegPublisher(publisherLog, channel, encoderFactory, streamSetting), h264, folder, snapshot);
         })];
     }
 
@@ -102,6 +106,7 @@ public sealed class CameraManager : IHostedService, IAsyncDisposable
         foreach (var camera in cameras)
         {
             camera.Channel.Tick();
+            camera.H264?.Tick();
         }
     }
 

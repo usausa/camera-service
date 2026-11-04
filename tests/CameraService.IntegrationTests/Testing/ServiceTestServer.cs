@@ -99,6 +99,8 @@ internal sealed class ServiceTestServer : IAsyncDisposable
 
     public Uri GetUri(string path) => new(BaseAddress, path);
 
+    public Uri GetWebSocketUri(string path) => new UriBuilder(BaseAddress) { Scheme = "ws", Path = path }.Uri;
+
     private static async Task<ServiceTestServer> StartAsync(IReadOnlyDictionary<string, string?>? settings, Action<string>? prepareStorage, CancellationToken cancellationToken)
     {
         // The content root is an empty folder, so the appsettings of the application are not read
@@ -118,6 +120,8 @@ internal sealed class ServiceTestServer : IAsyncDisposable
             ["Camera:WarmupTime"] = "0",
             ["Camera:FrameTimeout"] = "1",
             ["Stream:Fps"] = "30",
+            // The same encoder on every PC, and no session of a hardware encoder is used
+            ["Stream:H264:PreferHardware"] = "false",
             ["Storage:Path"] = storagePath,
             // The images of the tests are not deleted by their dates or by the free space of the drive of the PC
             ["Retention:Days"] = "0",

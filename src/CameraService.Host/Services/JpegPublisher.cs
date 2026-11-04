@@ -38,9 +38,13 @@ public sealed class JpegPublisher : IDisposable
 
     private long encodedFrames;
 
+    private long encodedBytes;
+
     public FrameHub Hub { get; } = new();
 
     public long EncodedFrames => Interlocked.Read(ref encodedFrames);
+
+    public long EncodedBytes => Interlocked.Read(ref encodedBytes);
 
     public JpegPublisher(ILogger log, CameraChannel channel, IJpegEncoderFactory encoderFactory, StreamSetting setting)
     {
@@ -101,6 +105,7 @@ public sealed class JpegPublisher : IDisposable
             work.AsSpan(0, written).CopyTo(jpeg.GetBuffer(written));
             jpeg.Commit(++index, written);
             Interlocked.Increment(ref encodedFrames);
+            Interlocked.Add(ref encodedBytes, written);
             Hub.Publish(jpeg);
         }
         catch (Exception ex) when (ex is ArgumentException or COMException)

@@ -22,8 +22,14 @@
 |:--|:--|:--|
 | `Stream:Fps` | MJPEG と静止画の最大 fps(カメラのフレームを間引く) | `10` |
 | `Stream:Quality` | JPEG の品質(1〜100) | `80` |
+| `Stream:H264:Enable` | H.264 のライブ(WebSocket) | `true` |
+| `Stream:H264:Bitrate` | kbps(固定のビットレート)。0 なら解像度から決める(640x480 まで 4000、1280x720 まで 8000、それより上 16000) | `0` |
+| `Stream:H264:KeyFrameInterval` | キーフレームの間隔(秒) | `2` |
+| `Stream:H264:PreferHardware` | ハードウェアのエンコーダーを先に試す。`false` ならソフトウェアだけ | `true` |
 
 - 640x480 の JPEG は 1 枚約 64 KB。10 fps で約 5 Mbps
+- H.264 はカメラのフレームを間引かない。640x480 で約 4 Mbps
+- ⚠️ ブラウザーが H.264 をデコードできるのは localhost か HTTPS だけ。ほかの PC から http で見ると MJPEG になる
 
 ## 💾 保存先と自動削除
 
@@ -76,4 +82,5 @@ Kestrel の設定だけで有効にできる。`Kestrel:Endpoints` を書くと 
 
 - 証明書はコンピューターの証明書ストアに置く(パスワードを設定ファイルに書かずに済む)。見る端末で信頼されている必要がある
 - HTTPS では HTTP/2 になり、1 画面で複数のライブを開ける(HTTP/1.1 は 1 つのホストに同時 6 接続まで)
+- HTTPS なら、ほかの PC のブラウザーでも H.264 で見られる(WebCodecs は安全な接続でだけ使える)
 - ✅ 開発用の証明書で、HTTPS と HTTP/2 で `/health` と静止画が取れることを確かめた

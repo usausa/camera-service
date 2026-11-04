@@ -146,6 +146,29 @@ public sealed class FrameHubTests
     }
 
     [Fact]
+    public async Task FramesBeforeSubscriptionAreNotSkippedAfterClear()
+    {
+        // Arrange (the camera closed after some frames)
+        Publish(1);
+        Publish(2);
+        Publish(3);
+        hub.Clear();
+        using var subscription = hub.Subscribe(TestContext.Current.CancellationToken);
+
+        // Act
+        var wait = subscription.WaitAsync().AsTask();
+        Publish(4);
+        var frame = await wait.ConfigureAwait(true);
+        subscription.Complete(frame);
+        frame.Release();
+
+        // Assert
+        Assert.Equal(1, subscription.SentFrames);
+        Assert.Equal(0, subscription.SkippedFrames);
+        Assert.Equal(0, hub.SkippedFrames);
+    }
+
+    [Fact]
     public void PoolClearDropsFramesNotInUse()
     {
         // Arrange

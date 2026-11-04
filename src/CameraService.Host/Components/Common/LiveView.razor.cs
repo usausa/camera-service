@@ -3,7 +3,8 @@ namespace CameraService.Host.Components.Common;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 
-// MJPEG of a camera. The image is created by the script and its request is stopped when the view is removed
+// Live view of a camera: H.264 where the browser can decode it, otherwise MJPEG (decided by the script).
+// The image or the connection is created by the script and stopped when the view is removed
 // (a browser may keep loading an image that was only removed from the page).
 public sealed partial class LiveView : IAsyncDisposable
 {
@@ -24,6 +25,10 @@ public sealed partial class LiveView : IAsyncDisposable
     [EditorRequired]
     public string CameraId { get; set; } = string.Empty;
 
+    // The stream of the camera has H.264
+    [Parameter]
+    public bool H264 { get; set; }
+
     //--------------------------------------------------------------------------------
     // Lifecycle
     //--------------------------------------------------------------------------------
@@ -34,7 +39,7 @@ public sealed partial class LiveView : IAsyncDisposable
         if (firstRender)
         {
             module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/camera.js");
-            await module.InvokeVoidAsync("start", container, key, $"cameras/{Uri.EscapeDataString(CameraId)}/stream.mjpg");
+            await module.InvokeVoidAsync("start", container, key, Links.Stream(CameraId), H264 ? Links.H264(CameraId) : null);
         }
     }
 

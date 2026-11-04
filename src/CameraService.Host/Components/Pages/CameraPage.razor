@@ -51,7 +51,7 @@ else
         <div class="screen">
             @if (live)
             {
-                <LiveView CameraId="@camera.Id" />
+                <LiveView CameraId="@camera.Id" H264="camera.H264 is not null" />
             }
             else
             {

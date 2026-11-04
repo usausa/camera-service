@@ -5,6 +5,6 @@
 | [🚀 導入](setup.md) | 動作環境、試しに動かす、Windows サービスの登録 |
 | [⚙️ 設定](settings.md) | `appsettings.json` の項目、HTTPS |
 | [🖥️ 画面](ui.md) | カメラ一覧、カメラ、保存画像、状態のページと操作 |
-| [📡 配信](streaming.md) | MJPEG と静止画、カメラを開く・閉じる仕組み、計測 |
+| [📡 配信](streaming.md) | MJPEG、H.264、静止画、カメラを開く・閉じる仕組み、計測 |
 | [💾 保存](snapshot.md) | Cron の時刻、保存の流れ、保存先、日時の焼き込み、自動削除、計測 |
-| [🔗 エンドポイント](endpoints.md) | 一覧、保存画像とサムネイル、ヘルスチェック |
+| [🔗 エンドポイント](endpoints.md) | 一覧、H.264 の WebSocket とヘッダー、保存画像とサムネイル、ヘルスチェック |

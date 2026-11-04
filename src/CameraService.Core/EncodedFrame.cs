@@ -19,6 +19,9 @@ public sealed class EncodedFrame
     // Stopwatch timestamp
     public long PublishTimestamp { get; private set; }
 
+    // H.264 frame that does not depend on the previous frames
+    public bool IsKeyFrame { get; private set; }
+
     public ReadOnlyMemory<byte> Data => buffer.AsMemory(0, length);
 
     internal EncodedFrame(FramePool pool)
@@ -37,10 +40,13 @@ public sealed class EncodedFrame
         return buffer;
     }
 
-    public void Commit(long index, int dataLength)
+    public void Commit(long index, int dataLength) => Commit(index, dataLength, false);
+
+    public void Commit(long index, int dataLength, bool keyFrame)
     {
         Index = index;
         length = dataLength;
+        IsKeyFrame = keyFrame;
         PublishTimestamp = Stopwatch.GetTimestamp();
     }
 

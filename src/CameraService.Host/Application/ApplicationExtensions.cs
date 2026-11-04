@@ -90,6 +90,8 @@ public static class ApplicationExtensions
         builder.Services.AddSingleton(static p => p.GetRequiredService<IOptions<CameraSetting>>().Value);
         builder.Services.AddOptions<StreamSetting>().BindConfiguration("Stream").ValidateDataAnnotations().ValidateOnStart();
         builder.Services.AddSingleton(static p => p.GetRequiredService<IOptions<StreamSetting>>().Value);
+        builder.Services.AddOptions<H264Setting>().BindConfiguration("Stream:H264").ValidateDataAnnotations().ValidateOnStart();
+        builder.Services.AddSingleton(static p => p.GetRequiredService<IOptions<H264Setting>>().Value);
         builder.Services.AddOptions<List<CameraDeviceSetting>>().BindConfiguration("Cameras").ValidateOnStart();
         builder.Services.AddSingleton<IValidateOptions<List<CameraDeviceSetting>>, CameraDeviceSettingValidator>();
         builder.Services.AddOptions<StorageSetting>().BindConfiguration("Storage").ValidateDataAnnotations().ValidateOnStart();
@@ -123,6 +125,7 @@ public static class ApplicationExtensions
     {
         var camera = app.Services.GetRequiredService<CameraSetting>();
         var stream = app.Services.GetRequiredService<StreamSetting>();
+        var h264 = app.Services.GetRequiredService<H264Setting>();
         var storage = app.Services.GetRequiredService<StorageSetting>();
         var retention = app.Services.GetRequiredService<RetentionSetting>();
         var devices = app.Services.GetRequiredService<IOptions<List<CameraDeviceSetting>>>().Value;
@@ -132,6 +135,7 @@ public static class ApplicationExtensions
         app.Logger.InfoServiceSettingsEnvironment(typeof(Program).Assembly.GetName().Version, Environment.CurrentDirectory);
         app.Logger.InfoServiceSettingsCamera(camera.IdleTime, camera.WarmupTime, camera.FrameTimeout);
         app.Logger.InfoServiceSettingsStream(stream.Fps, stream.Quality);
+        app.Logger.InfoServiceSettingsH264(h264.Enable, h264.Bitrate, h264.KeyFrameInterval, h264.PreferHardware);
         app.Logger.InfoServiceSettingsStorage(Path.GetFullPath(storage.Path, AppContext.BaseDirectory));
         app.Logger.InfoServiceSettingsRetention(retention.Schedule, retention.Days, retention.MinFreeSpace);
         if (devices.Count == 0)
@@ -177,6 +181,9 @@ public static class ApplicationExtensions
 
     public static WebApplication MapEndpoints(this WebApplication app)
     {
+        // H.264 streams
+        app.UseWebSockets();
+
         // Health
         app.MapHealthChecks("/health");
 

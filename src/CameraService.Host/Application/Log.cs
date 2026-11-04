@@ -21,6 +21,9 @@ internal static partial class Log
     [LoggerMessage(Level = LogLevel.Information, Message = "Stream: fps=[{fps}], quality=[{quality}]")]
     public static partial void InfoServiceSettingsStream(this ILogger logger, int fps, int quality);
 
+    [LoggerMessage(Level = LogLevel.Information, Message = "H264: enable=[{enable}], bitrate=[{bitrate}], keyFrameInterval=[{keyFrameInterval}], preferHardware=[{preferHardware}]")]
+    public static partial void InfoServiceSettingsH264(this ILogger logger, bool enable, int bitrate, int keyFrameInterval, bool preferHardware);
+
     [LoggerMessage(Level = LogLevel.Information, Message = "Storage: path=[{path}]")]
     public static partial void InfoServiceSettingsStorage(this ILogger logger, string path);
 
@@ -63,6 +66,20 @@ internal static partial class Log
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Encode failed. id=[{id}]")]
     public static partial void ErrorEncodeFailed(this ILogger logger, Exception ex, string id);
+
+    // H.264
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "H.264 encoder created. id=[{id}], name=[{name}], hardware=[{hardware}], size=[{width}x{height}], fullRange=[{fullRange}], fps=[{fps}], bitrate=[{bitrate}], keyFrameInterval=[{keyFrameInterval}], elapsed=[{elapsed:F1}ms]")]
+    public static partial void InfoH264EncoderCreated(this ILogger logger, string id, string name, bool hardware, int width, int height, bool fullRange, int fps, int bitrate, int keyFrameInterval, double elapsed);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "H.264 encoder create failed. id=[{id}], size=[{width}x{height}]")]
+    public static partial void ErrorH264EncoderCreateFailed(this ILogger logger, Exception ex, string id, int width, int height);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "H.264 encoder released. id=[{id}], name=[{name}]")]
+    public static partial void InfoH264EncoderReleased(this ILogger logger, string id, string name);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "H.264 encoder failed. id=[{id}], name=[{name}], code=[0x{code:X8}]")]
+    public static partial void ErrorH264EncoderFailed(this ILogger logger, string id, string name, int code);
 
     // Schedule
 
@@ -111,9 +128,9 @@ internal static partial class Log
 
     // Client
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Client connected. camera=[{camera}], address=[{address}], port=[{port}]")]
-    public static partial void InfoClientConnected(this ILogger logger, string camera, IPAddress? address, int port);
+    [LoggerMessage(Level = LogLevel.Information, Message = "Client connected. camera=[{camera}], type=[{type}], address=[{address}], port=[{port}]")]
+    public static partial void InfoClientConnected(this ILogger logger, string camera, string type, IPAddress? address, int port);
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Client disconnected. camera=[{camera}], address=[{address}], port=[{port}], sent=[{sent}], skipped=[{skipped}]")]
-    public static partial void InfoClientDisconnected(this ILogger logger, string camera, IPAddress? address, int port, long sent, long skipped);
+    [LoggerMessage(Level = LogLevel.Information, Message = "Client disconnected. camera=[{camera}], type=[{type}], address=[{address}], port=[{port}], sent=[{sent}], skipped=[{skipped}]")]
+    public static partial void InfoClientDisconnected(this ILogger logger, string camera, string type, IPAddress? address, int port, long sent, long skipped);
 }

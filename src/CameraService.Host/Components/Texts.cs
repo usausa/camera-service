@@ -14,4 +14,8 @@ public static class Texts
     public static string FreeSpace(long? bytes) => bytes is { } value ? String.Create(CultureInfo.InvariantCulture, $"{value / GigaBytes:F1} GB") : "-";
 
     public static string Rate(double value) => value.ToString("F1", CultureInfo.InvariantCulture);
+
+    // Frame rate, bitrate (Mbps) and clients of a stream
+    public static string Stream(double frameRate, double bitrate, int clients) =>
+        String.Create(CultureInfo.InvariantCulture, $"{frameRate:F1} fps, {bitrate:F1} Mbps, {clients} {(clients == 1 ? "client" : "clients")}");
 }

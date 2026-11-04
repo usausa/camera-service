@@ -13,6 +13,9 @@ public static class Links
 
     public static string Stream(string id) => $"{Camera(id)}/stream.mjpg";
 
+    // WebSocket (the scheme is set by the script)
+    public static string H264(string id) => $"{Camera(id)}/h264";
+
     // The version makes the browser load a new image
     public static string Snapshot(string id, long version) => String.Create(CultureInfo.InvariantCulture, $"{Camera(id)}/snapshot.jpg?v={version}");
 
