@@ -4,6 +4,8 @@
 
 カメラをブラウザーへ配信し、決めた時刻に静止画を保存する Windows サービス。使っていないカメラとエンコーダーは閉じる。
 
+<img src="docs/image.png" title="Image" width="50%">
+
 ## ✨ 機能
 
 | 機能 | 内容 |
@@ -103,7 +105,7 @@ dotnet run --project src/CameraService.Host
 |:--|:--|:--|
 | `Id` | URL とフォルダー名に使用。英数字、`-`、`_`。大文字小文字を区別せず一意 | 必須 |
 | `Name` | 表示名 | `Id` |
-| `Device` | デバイス名。`Device` と `DeviceId` がなければ先頭のデバイス | 空 |
+| `Device` | デバイス名。`Device` と `DeviceId` がなければ形式が合う最初のデバイス | 空 |
 | `DeviceId` | `/api/devices` の `id`(同名のデバイスの区別) | 空 |
 | `Format` | `Yuy2` / `Nv12` | `Yuy2` |
 | `Width` / `Height` / `Fps` | カメラが持つ形式 | `640` / `480` / `30` |
@@ -116,7 +118,8 @@ dotnet run --project src/CameraService.Host
 | `Snapshot:Timestamp:Position` | `TopLeft` / `TopRight` / `BottomLeft` / `BottomRight` | `BottomRight` |
 | `Snapshot:Timestamp:Scale` | 文字の大きさ(1 = 7 ドット)。0 は画像の高さで決定(480: 2、720: 3、1080: 4) | `0` |
 
-- ⚠️ 先頭のデバイスが仮想カメラの場合あり(スマートフォンなど)。`Device` を指定
+- ⚠️ 形式が合う仮想カメラ(スマートフォンなど)が選ばれる場合あり。`Device` を指定
+- `Format ... not supported` にはデバイスの形式を表示
 - 💡 同じ USB に複数台なら NV12(YUY2 は帯域が大きい)
 
 ### 🔒 HTTPS

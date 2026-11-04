@@ -16,6 +16,8 @@ internal sealed class TestCameraProvider : ICameraProvider
 
     public const string SecondDeviceId = "test-camera-2";
 
+    public const string VirtualDeviceName = "Virtual camera";
+
     public const int Width = 320;
 
     public const int Height = 240;
@@ -25,6 +27,8 @@ internal sealed class TestCameraProvider : ICameraProvider
     private static readonly VideoFormat Format = new(VideoPixelFormat.Yuy2, Width, Height, FrameRate);
 
     private static readonly VideoDevice[] Devices = [new(DeviceId, DeviceName, [Format]), new(SecondDeviceId, SecondDeviceName, [Format])];
+
+    private static readonly VideoDevice VirtualDevice = new("virtual-camera", VirtualDeviceName, [new VideoFormat(VideoPixelFormat.Nv12, 1280, 720, FrameRate)]);
 
     private TestCapture? capture;
 
@@ -46,10 +50,13 @@ internal sealed class TestCameraProvider : ICameraProvider
     // The next capture fails while it starts
     public bool FailsNextStart { get; set; }
 
+    // A device with another format comes first, as the virtual camera of a phone
+    public bool HasVirtualDevice { get; set; }
+
     public async Task<IReadOnlyList<VideoDevice>> GetDevicesAsync()
     {
         await DevicesHold.ConfigureAwait(false);
-        return Devices;
+        return HasVirtualDevice ? [VirtualDevice, .. Devices] : Devices;
     }
 
     public IVideoCapture CreateCapture(string deviceId)

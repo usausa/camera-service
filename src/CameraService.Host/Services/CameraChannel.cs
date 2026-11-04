@@ -263,38 +263,49 @@ public sealed class CameraChannel : IAsyncDisposable
         }
     }
 
+    // The first candidate with the format of the setting. The error lists the formats of the candidates, as they are needed to correct the setting.
     private async Task ResolveAsync()
     {
-        var devices = await provider.GetDevicesAsync().ConfigureAwait(false);
-        var device = FindDevice(devices) ?? throw new InvalidOperationException("Camera not found.");
-        var format = setting.ToVideoFormat();
-        var found = device.Formats.FirstOrDefault(x =>
-            (x.PixelFormat == format.PixelFormat) &&
-            (x.Width == format.Width) &&
-            (x.Height == format.Height) &&
-            (Math.Abs(x.FrameRate - format.FrameRate) < FrameRateTolerance));
-        if (found.Width == 0)
+        var devices = FindCandidates(await provider.GetDevicesAsync().ConfigureAwait(false));
+        if (devices.Count == 0)
         {
-            throw new InvalidOperationException("Format not supported.");
+            throw new InvalidOperationException("Camera not found.");
         }
 
-        Device = device;
-        resolvedFormat = found;
+        var format = setting.ToVideoFormat();
+        foreach (var device in devices)
+        {
+            var found = device.Formats.FirstOrDefault(x =>
+                (x.PixelFormat == format.PixelFormat) &&
+                (x.Width == format.Width) &&
+                (x.Height == format.Height) &&
+                (Math.Abs(x.FrameRate - format.FrameRate) < FrameRateTolerance));
+            if (found.Width > 0)
+            {
+                Device = device;
+                resolvedFormat = found;
+                return;
+            }
+        }
+
+        var available = String.Join(" ", devices.Select(static x => $"{x.Name}: {String.Join(", ", x.Formats)}."));
+        throw new InvalidOperationException($"Format {format} not supported. {available}");
     }
 
-    private VideoDevice? FindDevice(IReadOnlyList<VideoDevice> devices)
+    // The configured device, or every device when none is configured (the first device of a PC can be a virtual camera without the format)
+    private List<VideoDevice> FindCandidates(IReadOnlyList<VideoDevice> devices)
     {
         if (setting.DeviceId.Length > 0)
         {
-            return devices.FirstOrDefault(x => String.Equals(x.Id, setting.DeviceId, StringComparison.OrdinalIgnoreCase));
+            return [.. devices.Where(x => String.Equals(x.Id, setting.DeviceId, StringComparison.OrdinalIgnoreCase))];
         }
 
         if (setting.Device.Length > 0)
         {
-            return devices.FirstOrDefault(x => String.Equals(x.Name, setting.Device, StringComparison.OrdinalIgnoreCase));
+            return [.. devices.Where(x => String.Equals(x.Name, setting.Device, StringComparison.OrdinalIgnoreCase))];
         }
 
-        return devices.Count > 0 ? devices[0] : null;
+        return [.. devices];
     }
 
     // failure: opened again after the retry delay while the camera is used

@@ -4,6 +4,8 @@
 
 A Windows service that streams cameras to the browser and saves still images on a schedule. Cameras and encoders stay closed while unused.
 
+<img src="docs/image.png" title="Image" width="50%">
+
 ## ✨ Features
 
 | Feature | Description |
@@ -103,7 +105,7 @@ In `appsettings.json` or on the command line (`--Cameras:0:Device="ELECOM 2MP We
 |:--|:--|:--|
 | `Id` | For URLs and folders: letters, digits, `-`, `_`. Unique, ignoring case | Required |
 | `Name` | Display name | `Id` |
-| `Device` | Device name. Without `Device` and `DeviceId`: first device | Empty |
+| `Device` | Device name. Without `Device` and `DeviceId`: first device with the format | Empty |
 | `DeviceId` | `id` in `/api/devices`, for devices with the same name | Empty |
 | `Format` | `Yuy2` / `Nv12` | `Yuy2` |
 | `Width` / `Height` / `Fps` | A format of the camera | `640` / `480` / `30` |
@@ -116,7 +118,8 @@ In `appsettings.json` or on the command line (`--Cameras:0:Device="ELECOM 2MP We
 | `Snapshot:Timestamp:Position` | `TopLeft` / `TopRight` / `BottomLeft` / `BottomRight` | `BottomRight` |
 | `Snapshot:Timestamp:Scale` | Character size (1 = 7 dots). 0: by image height (480: 2, 720: 3, 1080: 4) | `0` |
 
-- ⚠️ The first device may be virtual (for example a phone). Set `Device`
+- ⚠️ A virtual camera with the format (for example a phone) may be chosen. Set `Device`
+- `Format ... not supported` lists the formats of the devices
 - 💡 Use NV12 for several cameras on one USB controller: YUY2 needs much bandwidth
 
 ### 🔒 HTTPS

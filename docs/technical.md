@@ -26,7 +26,7 @@ Internals, protocol, measurements and checks. For installation and settings, see
 - Failure (open, close, error, `FrameTimeout`): close and reopen after 5 → 10 → 30 → 60 seconds, only while leased
 - Failed until the next frame: if a camera opens but sends nothing, delays keep growing and `/health` stays 503
 - Device search, open and close time out after 15 seconds and count as failures. Close releases the reader and the capture even on an exception
-- Device and format are resolved on the first open and after a failure
+- Device and format are resolved on the first open and after a failure. Without a configured device, the first one with the format is used (the first device can be a virtual camera without it)
 - Steps run one at a time on a 0.5-second timer (at once for the first user)
 - Exclusive access: while another application holds the camera, the open succeeds and the capture then fails (`0xC00D3704`)
 

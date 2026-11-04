@@ -13,7 +13,7 @@ public sealed class CameraDeviceSetting
     // Display name, the Id when empty
     public string Name { get; set; } = string.Empty;
 
-    // Name of the device, the first device when both Device and DeviceId are empty
+    // Name of the device, the first device with the format when both Device and DeviceId are empty
     public string Device { get; set; } = string.Empty;
 
     // Identifies one of the devices with the same name (shown in the log and /api/devices)
