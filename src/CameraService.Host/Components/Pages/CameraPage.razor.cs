@@ -1,17 +1,18 @@
 namespace CameraService.Host.Components.Pages;
 
+using CameraService.Host.Components.Common;
 using CameraService.Host.Services;
 
 using Microsoft.AspNetCore.Components;
 
-// Live view (MJPEG) or still images of a camera. A still image opens the camera when it is closed (about 2 seconds).
+// Live view (H.264 or MJPEG) or still images of a camera. A still image opens the camera when it is closed.
 public sealed partial class CameraPage : IDisposable
 {
     private static readonly TimeSpan TickInterval = TimeSpan.FromSeconds(1);
 
     private static readonly int[] Intervals = [0, 5, 10, 30, 60];
 
-    private readonly CancellationTokenSource disposed = new();
+    private PageTimer? timer;
 
     private bool live = true;
 
@@ -36,13 +37,9 @@ public sealed partial class CameraPage : IDisposable
     // Lifecycle
     //--------------------------------------------------------------------------------
 
-    protected override void OnInitialized() => _ = TickAsync(disposed.Token);
+    protected override void OnInitialized() => timer = new PageTimer(TickInterval, () => InvokeAsync(OnTick));
 
-    public void Dispose()
-    {
-        disposed.Cancel();
-        disposed.Dispose();
-    }
+    public void Dispose() => timer?.Dispose();
 
     //--------------------------------------------------------------------------------
     // Event
@@ -72,27 +69,13 @@ public sealed partial class CameraPage : IDisposable
     //--------------------------------------------------------------------------------
 
     // The state of the camera, and the still image at the interval
-    private async Task TickAsync(CancellationToken cancellationToken)
+    private void OnTick()
     {
-        try
+        if (!live && (interval > 0) && (DateTime.UtcNow - lastRefresh >= TimeSpan.FromSeconds(interval)))
         {
-            using var timer = new PeriodicTimer(TickInterval);
-            while (await timer.WaitForNextTickAsync(cancellationToken))
-            {
-                await InvokeAsync(() =>
-                {
-                    if (!live && (interval > 0) && (DateTime.UtcNow - lastRefresh >= TimeSpan.FromSeconds(interval)))
-                    {
-                        Refresh();
-                    }
+            Refresh();
+        }
 
-                    StateHasChanged();
-                });
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            // The page is closed
-        }
+        StateHasChanged();
     }
 }

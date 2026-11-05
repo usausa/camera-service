@@ -23,7 +23,7 @@ A Windows service that streams cameras to the browser and saves still images on 
 ## 💻 Requirements
 
 - Windows 11, ASP.NET Core 10 runtime (.NET 10 SDK to build)
-- USB camera supported by MediaFrameReader (YUY2 or NV12)
+- USB camera (YUY2 or NV12)
 - ⚠️ Camera access allowed (Settings > Privacy & security > Camera)
 
 ## ▶️ Try it
@@ -56,7 +56,6 @@ dotnet run --project src/CameraService.Host
 - `-FirewallPort 5180` opens the port for other PCs
 - ⚠️ Use the published folder: the build output has no `wwwroot`
 - **Log:** `Log\CameraService_yyyyMMdd.log` one level above the published folder. `Serilog:MinimumLevel:Default` = `Debug` adds a line per save
-- ⚠️ If the service does not start, read the log: wrong settings and JSON errors are written there
 
 ## ⚙️ Settings
 
@@ -87,7 +86,6 @@ In `appsettings.json` or on the command line (`--Cameras:0:Device="ELECOM 2MP We
 | `Stream:H264:KeyFrameInterval` | Seconds between key frames | `2` |
 | `Stream:H264:PreferHardware` | Try hardware encoders first | `true` |
 
-- At 640x480: MJPEG about 5 Mbps (10 fps), H.264 about 4 Mbps (all frames)
 - ⚠️ H.264 needs localhost or HTTPS. Plain HTTP from other PCs uses MJPEG
 
 ### 💾 Storage and deletion
@@ -107,7 +105,7 @@ In `appsettings.json` or on the command line (`--Cameras:0:Device="ELECOM 2MP We
 | `Name` | Display name | `Id` |
 | `Device` | Device name. Without `Device` and `DeviceId`: first device with the format | Empty |
 | `DeviceId` | `id` in `/api/devices`, for devices with the same name | Empty |
-| `Format` | `Yuy2` / `Nv12` | `Yuy2` |
+| `Format` | `Yuy2` / `Nv12` (formats of a camera: `/api/devices`) | `Yuy2` |
 | `Width` / `Height` / `Fps` | A format of the camera | `640` / `480` / `30` |
 | `Snapshot:Enable` | Scheduled saving | `false` |
 | `Snapshot:Schedule` | Cron | `* * * * *` |
@@ -118,7 +116,7 @@ In `appsettings.json` or on the command line (`--Cameras:0:Device="ELECOM 2MP We
 | `Snapshot:Timestamp:Position` | `TopLeft` / `TopRight` / `BottomLeft` / `BottomRight` | `BottomRight` |
 | `Snapshot:Timestamp:Scale` | Character size (1 = 7 dots). 0: by image height (480: 2, 720: 3, 1080: 4) | `0` |
 
-- ⚠️ A virtual camera with the format (for example a phone) may be chosen. Set `Device`
+- ⚠️ Set `Device` when several devices have the format
 - `Format ... not supported` lists the formats of the devices
 - 💡 Use NV12 for several cameras on one USB controller: YUY2 needs much bandwidth
 
@@ -139,7 +137,7 @@ Set `Kestrel:Endpoints`. It replaces `http_ports`, so list HTTP too.
 ```
 
 - Certificate in the computer's store, trusted by the viewing devices
-- Gives other PCs H.264, and HTTP/2 (HTTP/1.1 allows 6 connections per host)
+- Gives other PCs H.264, and HTTP/2
 
 ## 🕒 Schedules (cron)
 
@@ -157,7 +155,6 @@ Set `Kestrel:Endpoints`. It replaces `http_ports`, so list HTTP too.
 
 - Missed runs are not caught up
 - A run is skipped while the previous save waits for the camera
-- ⚠️ The first run after a daylight saving change can be off
 
 ## 💾 Saved images
 
@@ -171,8 +168,7 @@ Set `Kestrel:Endpoints`. It replaces `http_ports`, so list HTTP too.
 | `Images` | `E:\Front` | `E:\Front` |
 
 - Two cameras cannot share a folder (checked on the resolved paths)
-- 640x480, quality 90: up to about 100 KB per image, about 140 MB a day when saving every minute
-- The camera opens about 3 seconds before the time and closes after `IdleTime`
+- The camera opens `WarmupTime` + 2 seconds before the time and closes after `IdleTime`
 - A failed save logs one warning until the next success
 
 ### 🧹 Deletion
@@ -198,7 +194,7 @@ Set `Kestrel:Endpoints`. It replaces `http_ports`, so list HTTP too.
 
 - **Live:** the top right shows H.264 or MJPEG
 - **Red `Reconnecting`:** connection lost, the last frame stays, reconnects automatically
-- **Still:** refresh button or every 5 / 10 / 30 / 60 seconds. About 2 seconds when the camera is closed
+- **Still:** refresh button or every 5 / 10 / 30 / 60 seconds
 
 ### 🗂️ Images
 
@@ -242,7 +238,7 @@ An unused camera keeps its last state.
 ## ⚠️ Good to know
 
 - **One user per camera:** the service and other applications cannot use a camera at the same time. Saves fail while another application holds it
-- **Dark rooms:** longer exposure can lower the camera to about 10 fps and delay saved files slightly
+- **Dark rooms:** longer exposure lowers the frame rate of the camera and delays saved files slightly
 
 ## 📚 Technical notes
 

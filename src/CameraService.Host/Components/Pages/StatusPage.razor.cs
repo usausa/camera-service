@@ -3,6 +3,7 @@ namespace CameraService.Host.Components.Pages;
 using System.Diagnostics;
 
 using CameraService.Core;
+using CameraService.Host.Components.Common;
 using CameraService.Host.Services;
 using CameraService.Host.Settings;
 
@@ -13,7 +14,7 @@ public sealed partial class StatusPage : IDisposable
 {
     private static readonly TimeSpan RefreshInterval = TimeSpan.FromSeconds(1);
 
-    private readonly CancellationTokenSource disposed = new();
+    private PageTimer? timer;
 
     private IReadOnlyList<StatusRow> rows = [];
 
@@ -45,37 +46,19 @@ public sealed partial class StatusPage : IDisposable
         // The newest images from the folders once, then from the saves
         rows = [.. Manager.Cameras.Select(x => new StatusRow(x, Store.FindLatest(x)))];
         Update();
-        _ = RefreshAsync(disposed.Token);
+        timer = new PageTimer(RefreshInterval, () => InvokeAsync(OnTick));
     }
 
-    public void Dispose()
-    {
-        disposed.Cancel();
-        disposed.Dispose();
-    }
+    public void Dispose() => timer?.Dispose();
 
     //--------------------------------------------------------------------------------
     // Refresh
     //--------------------------------------------------------------------------------
 
-    private async Task RefreshAsync(CancellationToken cancellationToken)
+    private void OnTick()
     {
-        try
-        {
-            using var timer = new PeriodicTimer(RefreshInterval);
-            while (await timer.WaitForNextTickAsync(cancellationToken))
-            {
-                await InvokeAsync(() =>
-                {
-                    Update();
-                    StateHasChanged();
-                });
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            // The page is closed
-        }
+        Update();
+        StateHasChanged();
     }
 
     private void Update()

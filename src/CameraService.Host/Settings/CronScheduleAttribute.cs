@@ -2,7 +2,7 @@ namespace CameraService.Host.Settings;
 
 using Mofucat.JobScheduler;
 
-// Cron expression of Mofucat.JobScheduler: 5 fields, or 6 fields with the seconds first
+// Cron expression: 5 fields, or 6 fields with the seconds first
 [AttributeUsage(AttributeTargets.Property)]
 public sealed class CronScheduleAttribute : ValidationAttribute
 {

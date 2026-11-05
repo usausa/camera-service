@@ -52,7 +52,7 @@ public sealed class H264EncoderTests
         var (converted, _) = Encode(false, static (encoder, index, timestamp) =>
         {
             var frame = new byte[Width * Height * 3 / 2];
-            ImageConverter.Yuy2ToNv12(CreateYuy2(index), Width * 2, frame.AsSpan(0, Width * Height), Width, frame.AsSpan(Width * Height), Width, Width, Height, YuvRange.Full);
+            ImageConverter.Yuy2ToNv12(CreateYuy2(index), Width * 2, frame.AsSpan(0, Width * Height), Width, frame.AsSpan(Width * Height), Width, Width, Height, VideoColorRange.Full);
             return encoder.Encode(frame.AsSpan(0, Width * Height), Width, frame.AsSpan(Width * Height), Width, timestamp);
         });
 

@@ -4,6 +4,7 @@ using System.Globalization;
 
 using CameraService.Core;
 using CameraService.Host.Application;
+using CameraService.Host.Components;
 using CameraService.Host.Services;
 
 using Microsoft.AspNetCore.Builder;
@@ -34,6 +35,8 @@ internal sealed class ServiceTestServer : IAsyncDisposable
     public TestLoggerProvider Logs { get; }
 
     public string StoragePath { get; }
+
+    public IHostApplicationLifetime Lifetime => app.Lifetime;
 
     public CameraManager Manager { get; }
 
@@ -124,10 +127,10 @@ internal sealed class ServiceTestServer : IAsyncDisposable
             ["Camera:WarmupTime"] = "0",
             ["Camera:FrameTimeout"] = "1",
             ["Stream:Fps"] = "30",
-            // The same encoder on every PC, and no session of a hardware encoder is used
+            // The software encoder, no session of a hardware encoder is used
             ["Stream:H264:PreferHardware"] = "false",
             ["Storage:Path"] = storagePath,
-            // The images of the tests are not deleted by their dates or by the free space of the drive of the PC
+            // The images of the tests are not deleted by their dates or by the free space of the drive
             ["Retention:Days"] = "0",
             ["Retention:MinFreeSpace"] = "0"
         };
@@ -143,15 +146,22 @@ internal sealed class ServiceTestServer : IAsyncDisposable
         builder.Logging.AddProvider(logs);
         builder.WebHost.UseUrls("http://127.0.0.1:0");
         builder.ConfigureHttp();
+        builder.ConfigureBlazor();
         builder.ConfigureHealth();
         builder.ConfigureComponents();
-        // Replaces the cameras of the PC (the last registration is used)
+        // Replaces the cameras of the platform (the last registration is used)
         var camera = new TestCameraProvider();
         builder.Services.AddSingleton<ICameraProvider>(camera);
         configureServices?.Invoke(builder.Services);
 
         var app = builder.Build();
+        app.UseStoppingGate();
+        app.UseAntiforgery();
         app.MapEndpoints();
+
+        // The pages without their static files (the content root is empty)
+        app.MapRazorComponents<App>()
+            .AddInteractiveServerRenderMode();
         try
         {
             prepareStorage?.Invoke(storagePath);

@@ -11,8 +11,6 @@ using CameraService.Host.Settings;
 // The frames are raised on the capture thread after the warm-up time.
 public sealed class CameraChannel : IAsyncDisposable
 {
-    private const double FrameRateTolerance = 0.5;
-
     private static readonly TimeSpan[] RetryDelays = [TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(60)];
 
     // A driver that hangs does not keep the steps of the camera, or the stop of the service, waiting
@@ -51,7 +49,7 @@ public sealed class CameraChannel : IAsyncDisposable
     // Failures since the last frame: a camera that opens and then fails, or sends nothing, goes on with the longer delays
     private int failures;
 
-    // Set by the capture (MediaCapture.Failed)
+    // Set by the Failed event of the capture
     private int failed;
 
     private bool stopped;
@@ -69,8 +67,6 @@ public sealed class CameraChannel : IAsyncDisposable
     public event EventHandler? Closed;
 
     public string Id => setting.Id;
-
-    public string Name => setting.DisplayName;
 
     public CameraState State { get; private set; }
 
@@ -275,11 +271,7 @@ public sealed class CameraChannel : IAsyncDisposable
         var format = setting.ToVideoFormat();
         foreach (var device in devices)
         {
-            var found = device.Formats.FirstOrDefault(x =>
-                (x.PixelFormat == format.PixelFormat) &&
-                (x.Width == format.Width) &&
-                (x.Height == format.Height) &&
-                (Math.Abs(x.FrameRate - format.FrameRate) < FrameRateTolerance));
+            var found = device.Formats.FirstOrDefault(x => x.Matches(format));
             if (found.Width > 0)
             {
                 Device = device;
@@ -292,7 +284,7 @@ public sealed class CameraChannel : IAsyncDisposable
         throw new InvalidOperationException($"Format {format} not supported. {available}");
     }
 
-    // The configured device, or every device when none is configured (the first device of a PC can be a virtual camera without the format)
+    // The configured device, or every device when none is configured
     private List<VideoDevice> FindCandidates(IReadOnlyList<VideoDevice> devices)
     {
         if (setting.DeviceId.Length > 0)
@@ -356,11 +348,12 @@ public sealed class CameraChannel : IAsyncDisposable
 
     private TimeSpan ScheduleRetry()
     {
-        var count = Interlocked.Increment(ref failures);
-        var delay = RetryDelays[Math.Min(count - 1, RetryDelays.Length - 1)];
+        var delay = GetRetryDelay(Interlocked.Increment(ref failures));
         Volatile.Write(ref retryTimestamp, Stopwatch.GetTimestamp() + (long)(delay.TotalSeconds * Stopwatch.Frequency));
         return delay;
     }
+
+    internal static TimeSpan GetRetryDelay(int failureCount) => RetryDelays[Math.Min(failureCount - 1, RetryDelays.Length - 1)];
 
     //--------------------------------------------------------------------------------
     // Capture thread

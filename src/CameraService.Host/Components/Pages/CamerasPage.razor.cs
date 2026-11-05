@@ -1,16 +1,17 @@
 namespace CameraService.Host.Components.Pages;
 
+using CameraService.Host.Components.Common;
 using CameraService.Host.Services;
 
 using Microsoft.AspNetCore.Components;
 
 // The cameras with their newest saved image and their state.
-// No live view here: a browser opens at most 6 connections to a server over HTTP/1.1, the live view is on the page of a camera.
+// The live view is on the page of a camera.
 public sealed partial class CamerasPage : IDisposable
 {
     private static readonly TimeSpan RefreshInterval = TimeSpan.FromSeconds(10);
 
-    private readonly CancellationTokenSource disposed = new();
+    private PageTimer? timer;
 
     private IReadOnlyList<CameraItem> items = [];
 
@@ -31,38 +32,20 @@ public sealed partial class CamerasPage : IDisposable
     protected override void OnInitialized()
     {
         Update();
-        _ = RefreshAsync(disposed.Token);
+        timer = new PageTimer(RefreshInterval, () => InvokeAsync(OnTick));
     }
 
-    public void Dispose()
-    {
-        disposed.Cancel();
-        disposed.Dispose();
-    }
+    public void Dispose() => timer?.Dispose();
 
     //--------------------------------------------------------------------------------
     // Refresh
     //--------------------------------------------------------------------------------
 
     // The newest images and the states, while the page is shown
-    private async Task RefreshAsync(CancellationToken cancellationToken)
+    private void OnTick()
     {
-        try
-        {
-            using var timer = new PeriodicTimer(RefreshInterval);
-            while (await timer.WaitForNextTickAsync(cancellationToken))
-            {
-                await InvokeAsync(() =>
-                {
-                    Update();
-                    StateHasChanged();
-                });
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            // The page is closed
-        }
+        Update();
+        StateHasChanged();
     }
 
     private void Update() => items = [.. Manager.Cameras.Select(x => new CameraItem(x, Store.FindLatest(x), x.ErrorMessage))];

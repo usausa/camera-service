@@ -9,7 +9,7 @@ using global::Windows.Media.Capture.Frames;
 using WinRT;
 
 // Receives MediaFrameReader.FrameArrived through the COM vtable.
-// The projection creates wrapper objects for the event arguments on every frame (about 440 bytes).
+// The projection would create wrapper objects for the event arguments on every frame.
 internal sealed unsafe class FrameArrivedSubscription : IDisposable
 {
     // IInspectable based interface starts at slot 6
@@ -60,7 +60,7 @@ internal sealed unsafe class FrameArrivedSubscription : IDisposable
         if (subscribed)
         {
             // IMediaFrameReader.remove_FrameArrived
-            ((delegate* unmanaged[Stdcall]<IntPtr, long, int>)Vtbl(reader)[RemoveFrameArrivedSlot])(reader, token);
+            ((delegate* unmanaged[Stdcall]<IntPtr, long, int>)Com.Vtbl(reader)[RemoveFrameArrivedSlot])(reader, token);
             subscribed = false;
         }
 
@@ -80,7 +80,7 @@ internal sealed unsafe class FrameArrivedSubscription : IDisposable
             {
                 // IMediaFrameReader.add_FrameArrived (the event source keeps a reference to the handler)
                 long value;
-                Marshal.ThrowExceptionForHR(((delegate* unmanaged[Stdcall]<IntPtr, IntPtr, long*, int>)Vtbl(reader)[AddFrameArrivedSlot])(reader, handler, &value));
+                Marshal.ThrowExceptionForHR(((delegate* unmanaged[Stdcall]<IntPtr, IntPtr, long*, int>)Com.Vtbl(reader)[AddFrameArrivedSlot])(reader, handler, &value));
                 token = value;
                 subscribed = true;
             }
@@ -95,8 +95,6 @@ internal sealed unsafe class FrameArrivedSubscription : IDisposable
         }
     }
 
-    private static void** Vtbl(IntPtr pointer) => *(void***)pointer;
-
     // TypedEventHandler.Invoke
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvStdcall)])]
     private static int Invoke(IntPtr self, IntPtr sender, IntPtr args)
@@ -110,7 +108,7 @@ internal sealed unsafe class FrameArrivedSubscription : IDisposable
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            // Exceptions must not reach the native caller (same as the projection)
+            // Exceptions must not reach the native caller
             return ex.HResult;
         }
     }

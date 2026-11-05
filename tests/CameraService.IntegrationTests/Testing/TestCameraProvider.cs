@@ -18,6 +18,8 @@ internal sealed class TestCameraProvider : ICameraProvider
 
     public const string VirtualDeviceName = "Virtual camera";
 
+    public const string CreateError = "Test create failure.";
+
     public const int Width = 320;
 
     public const int Height = 240;
@@ -34,14 +36,21 @@ internal sealed class TestCameraProvider : ICameraProvider
 
     private int createdCount;
 
+    private int createAttempts;
+
     // The capture created last (null while no camera has been opened)
     public TestCapture? Capture => Volatile.Read(ref capture);
 
     // Number of the captures created (each open of the camera creates one)
     public int CreatedCount => Volatile.Read(ref createdCount);
 
+    // Number of the calls to create a capture
+    public int CreateAttempts => Volatile.Read(ref createAttempts);
+
+    // The next captures are not created, with an exception that no camera is known to throw
+    public bool CreateFails { get; set; }
+
     // The search for the devices waits for this task, so that a test can see a camera in the Opening state
-    // (the search takes about 0.7 seconds on a PC, and it runs again each time a camera opens after a failure)
     public Task DevicesHold { get; set; } = Task.CompletedTask;
 
     // The next captures open without an error and send nothing
@@ -50,7 +59,7 @@ internal sealed class TestCameraProvider : ICameraProvider
     // The next capture fails while it starts
     public bool FailsNextStart { get; set; }
 
-    // A device with another format comes first, as the virtual camera of a phone
+    // A device with another format comes first
     public bool HasVirtualDevice { get; set; }
 
     public async Task<IReadOnlyList<VideoDevice>> GetDevicesAsync()
@@ -61,6 +70,12 @@ internal sealed class TestCameraProvider : ICameraProvider
 
     public IVideoCapture CreateCapture(string deviceId)
     {
+        Interlocked.Increment(ref createAttempts);
+        if (CreateFails)
+        {
+            throw new ArgumentException(CreateError, nameof(deviceId));
+        }
+
         var created = new TestCapture();
         if (SendsNoFrames)
         {
@@ -97,8 +112,6 @@ internal sealed class TestCapture : IVideoCapture
 
     public VideoFormat Format { get; private set; }
 
-    public VideoPixelFormat OutputPixelFormat => Format.PixelFormat;
-
     public bool IsDisposed => Volatile.Read(ref disposed) != 0;
 
     // Closing throws after the capture is released, as a capture whose device was removed
@@ -125,9 +138,9 @@ internal sealed class TestCapture : IVideoCapture
         return CloseFails ? ValueTask.FromException(new InvalidOperationException("Test close failure.")) : ValueTask.CompletedTask;
     }
 
-    public Task OpenAsync(VideoFormat format, VideoPixelFormat outputPixelFormat = VideoPixelFormat.Unknown)
+    public Task OpenAsync(VideoFormat format)
     {
-        if ((format.PixelFormat != VideoPixelFormat.Yuy2) || (outputPixelFormat is not (VideoPixelFormat.Unknown or VideoPixelFormat.Yuy2)))
+        if (format.PixelFormat != VideoPixelFormat.Yuy2)
         {
             throw new InvalidOperationException("Format not supported.");
         }
@@ -157,7 +170,7 @@ internal sealed class TestCapture : IVideoCapture
     // Stops sending frames, as a camera that hangs
     public void Pause() => paused = true;
 
-    // Raised as MediaCapture.Failed (for example when the device is removed)
+    // Raises the failure of the capture (for example when the device is removed)
     public void Fail() => Failed?.Invoke(this, new VideoCaptureFailedEventArgs("Test failure.", 0x80004005));
 
     private void Run()

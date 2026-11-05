@@ -1,8 +1,8 @@
 namespace CameraService.Core;
 
-// Returns the current time in the offset of the local time zone from GetUtcNow (the same instant as UTC).
-// Mofucat.JobScheduler evaluates the cron expressions in the offset of GetUtcNow, so "0 3 * * *" runs at 3:00 of the local time instead of UTC.
-// LocalTimeZone is UTC, because GetLocalNow (not virtual) adds its offset to the clock time of GetUtcNow, which is the local time already.
+// Returns the current time in the offset of the local time zone from GetUtcNow (the same instant as UTC),
+// so that "0 3 * * *" runs at 3:00 of the local time.
+// LocalTimeZone is UTC, because GetLocalNow adds its offset to the clock time of GetUtcNow, which is the local time already.
 // Not registered as TimeProvider, other components expect UTC from it.
 public sealed class LocalTimeProvider : TimeProvider
 {

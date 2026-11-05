@@ -11,7 +11,6 @@ public sealed class ThumbnailCache : IDisposable
     // About twice the width of a card in the lists, for high density displays
     private const int Width = 320;
 
-    // About 5,000 thumbnails of 320x240
     private const long SizeLimit = 64L * 1024 * 1024;
 
     private readonly IThumbnailGenerator generator;
@@ -25,7 +24,7 @@ public sealed class ThumbnailCache : IDisposable
 
     public void Dispose() => cache.Dispose();
 
-    // Null when the image cannot be decoded (a replaced file has a new key)
+    // Null when the image cannot be decoded or was deleted after it was found (a replaced file has a new key)
     public async ValueTask<byte[]?> GetAsync(FileInfo file, CancellationToken cancellationToken)
     {
         var key = (file.FullName, file.LastWriteTimeUtc.Ticks, file.Length);
@@ -34,7 +33,16 @@ public sealed class ThumbnailCache : IDisposable
             return thumbnail;
         }
 
-        var image = await File.ReadAllBytesAsync(file.FullName, cancellationToken).ConfigureAwait(false);
+        byte[] image;
+        try
+        {
+            image = await File.ReadAllBytesAsync(file.FullName, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+        {
+            return null;
+        }
+
         thumbnail = generator.Generate(image, Width);
         if (thumbnail is not null)
         {

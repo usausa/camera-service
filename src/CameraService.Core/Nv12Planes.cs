@@ -63,8 +63,7 @@ public sealed class Nv12Planes
                 ImageConverter.Nv12ToFullRange(frame.GetPlaneSpan(frame.Plane0), frame.Plane0.Stride, frame.GetPlaneSpan(frame.Plane1), frame.Plane1.Stride, y, stride, uv, stride, width, height);
                 break;
             case VideoPixelFormat.Yuy2:
-                var range = frame.ColorRange == VideoColorRange.Full ? YuvRange.Full : YuvRange.Limited;
-                ImageConverter.Yuy2ToNv12(frame.GetPlaneSpan(frame.Plane0), frame.Plane0.Stride, y, stride, uv, stride, width, height, range);
+                ImageConverter.Yuy2ToNv12(frame.GetPlaneSpan(frame.Plane0), frame.Plane0.Stride, y, stride, uv, stride, width, height, frame.ColorRange);
                 break;
             default:
                 throw new ArgumentException("Format not supported.", nameof(frame));

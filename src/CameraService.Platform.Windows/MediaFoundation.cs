@@ -73,7 +73,7 @@ internal static unsafe partial class MediaFoundation
     // MFVideoPrimaries_BT709
     public const uint PrimariesBt709 = 2;
 
-    // MFVideoTransFunc_709 (the encoder writes no transfer for MFVideoTransFunc_sRGB)
+    // MFVideoTransFunc_709
     public const uint TransferBt709 = 5;
 
     // eAVEncH264VProfile_Main
@@ -165,22 +165,11 @@ internal static unsafe partial class MediaFoundation
     // Helper
     //--------------------------------------------------------------------------------
 
-    private static void** Vtbl(IntPtr pointer) => *(void***)pointer;
-
-    public static void Release(IntPtr pointer)
-    {
-        if (pointer != IntPtr.Zero)
-        {
-            Marshal.Release(pointer);
-        }
-    }
-
     // Zero when the interface is not supported
     public static IntPtr QueryInterface(IntPtr pointer, in Guid iid) =>
         Marshal.QueryInterface(pointer, in iid, out var result) < 0 ? IntPtr.Zero : result;
 
     // Every failure is an InvalidOperationException with the HRESULT
-    // (Marshal.ThrowExceptionForHR maps some HRESULTs to other exception types, such as OutOfMemoryException)
     public static void ThrowIfFailed(int hr)
     {
         if (hr < 0)
@@ -234,15 +223,15 @@ internal static unsafe partial class MediaFoundation
         var hr = MFCreateMemoryBuffer((uint)size, &created);
         if (hr < 0)
         {
-            Release(sample);
+            Com.Release(sample);
             ThrowIfFailed(hr);
         }
 
-        hr = ((delegate* unmanaged[Stdcall]<IntPtr, IntPtr, int>)Vtbl(sample)[AddBufferSlot])(sample, created);
-        Release(created);
+        hr = ((delegate* unmanaged[Stdcall]<IntPtr, IntPtr, int>)Com.Vtbl(sample)[AddBufferSlot])(sample, created);
+        Com.Release(created);
         if (hr < 0)
         {
-            Release(sample);
+            Com.Release(sample);
             ThrowIfFailed(hr);
         }
 
@@ -257,7 +246,7 @@ internal static unsafe partial class MediaFoundation
     public static bool TryGetUInt32(IntPtr attributes, Guid key, out uint value)
     {
         uint result;
-        var hr = ((delegate* unmanaged[Stdcall]<IntPtr, Guid*, uint*, int>)Vtbl(attributes)[GetUInt32Slot])(attributes, &key, &result);
+        var hr = ((delegate* unmanaged[Stdcall]<IntPtr, Guid*, uint*, int>)Com.Vtbl(attributes)[GetUInt32Slot])(attributes, &key, &result);
         value = result;
         return hr >= 0;
     }
@@ -265,7 +254,7 @@ internal static unsafe partial class MediaFoundation
     public static bool TryGetGuid(IntPtr attributes, Guid key, out Guid value)
     {
         Guid result;
-        var hr = ((delegate* unmanaged[Stdcall]<IntPtr, Guid*, Guid*, int>)Vtbl(attributes)[GetGuidSlot])(attributes, &key, &result);
+        var hr = ((delegate* unmanaged[Stdcall]<IntPtr, Guid*, Guid*, int>)Com.Vtbl(attributes)[GetGuidSlot])(attributes, &key, &result);
         value = result;
         return hr >= 0;
     }
@@ -274,7 +263,7 @@ internal static unsafe partial class MediaFoundation
     {
         char* text;
         uint length;
-        if (((delegate* unmanaged[Stdcall]<IntPtr, Guid*, char**, uint*, int>)Vtbl(attributes)[GetAllocatedStringSlot])(attributes, &key, &text, &length) < 0)
+        if (((delegate* unmanaged[Stdcall]<IntPtr, Guid*, char**, uint*, int>)Com.Vtbl(attributes)[GetAllocatedStringSlot])(attributes, &key, &text, &length) < 0)
         {
             return null;
         }
@@ -285,13 +274,13 @@ internal static unsafe partial class MediaFoundation
     }
 
     public static void SetUInt32(IntPtr attributes, Guid key, uint value) =>
-        ThrowIfFailed(((delegate* unmanaged[Stdcall]<IntPtr, Guid*, uint, int>)Vtbl(attributes)[SetUInt32Slot])(attributes, &key, value));
+        ThrowIfFailed(((delegate* unmanaged[Stdcall]<IntPtr, Guid*, uint, int>)Com.Vtbl(attributes)[SetUInt32Slot])(attributes, &key, value));
 
     public static void SetUInt64(IntPtr attributes, Guid key, ulong value) =>
-        ThrowIfFailed(((delegate* unmanaged[Stdcall]<IntPtr, Guid*, ulong, int>)Vtbl(attributes)[SetUInt64Slot])(attributes, &key, value));
+        ThrowIfFailed(((delegate* unmanaged[Stdcall]<IntPtr, Guid*, ulong, int>)Com.Vtbl(attributes)[SetUInt64Slot])(attributes, &key, value));
 
     public static void SetGuid(IntPtr attributes, Guid key, Guid value) =>
-        ThrowIfFailed(((delegate* unmanaged[Stdcall]<IntPtr, Guid*, Guid*, int>)Vtbl(attributes)[SetGuidSlot])(attributes, &key, &value));
+        ThrowIfFailed(((delegate* unmanaged[Stdcall]<IntPtr, Guid*, Guid*, int>)Com.Vtbl(attributes)[SetGuidSlot])(attributes, &key, &value));
 
     //--------------------------------------------------------------------------------
     // IMFActivate
@@ -300,13 +289,13 @@ internal static unsafe partial class MediaFoundation
     public static int ActivateObject(IntPtr activate, Guid iid, out IntPtr result)
     {
         IntPtr pointer;
-        var hr = ((delegate* unmanaged[Stdcall]<IntPtr, Guid*, IntPtr*, int>)Vtbl(activate)[ActivateObjectSlot])(activate, &iid, &pointer);
+        var hr = ((delegate* unmanaged[Stdcall]<IntPtr, Guid*, IntPtr*, int>)Com.Vtbl(activate)[ActivateObjectSlot])(activate, &iid, &pointer);
         result = hr < 0 ? IntPtr.Zero : pointer;
         return hr;
     }
 
     public static void ShutdownObject(IntPtr activate) =>
-        ((delegate* unmanaged[Stdcall]<IntPtr, int>)Vtbl(activate)[ShutdownObjectSlot])(activate);
+        ((delegate* unmanaged[Stdcall]<IntPtr, int>)Com.Vtbl(activate)[ShutdownObjectSlot])(activate);
 
     //--------------------------------------------------------------------------------
     // IMFTransform
@@ -315,7 +304,7 @@ internal static unsafe partial class MediaFoundation
     public static OutputStreamInfo GetOutputStreamInfo(IntPtr transform)
     {
         OutputStreamInfo info;
-        ThrowIfFailed(((delegate* unmanaged[Stdcall]<IntPtr, uint, OutputStreamInfo*, int>)Vtbl(transform)[GetOutputStreamInfoSlot])(transform, 0, &info));
+        ThrowIfFailed(((delegate* unmanaged[Stdcall]<IntPtr, uint, OutputStreamInfo*, int>)Com.Vtbl(transform)[GetOutputStreamInfoSlot])(transform, 0, &info));
         return info;
     }
 
@@ -323,38 +312,38 @@ internal static unsafe partial class MediaFoundation
     public static IntPtr GetAttributes(IntPtr transform)
     {
         IntPtr attributes;
-        return ((delegate* unmanaged[Stdcall]<IntPtr, IntPtr*, int>)Vtbl(transform)[GetAttributesSlot])(transform, &attributes) < 0 ? IntPtr.Zero : attributes;
+        return ((delegate* unmanaged[Stdcall]<IntPtr, IntPtr*, int>)Com.Vtbl(transform)[GetAttributesSlot])(transform, &attributes) < 0 ? IntPtr.Zero : attributes;
     }
 
     // Zero at the end of the list
     public static IntPtr GetInputAvailableType(IntPtr transform, uint index)
     {
         IntPtr type;
-        return ((delegate* unmanaged[Stdcall]<IntPtr, uint, uint, IntPtr*, int>)Vtbl(transform)[GetInputAvailableTypeSlot])(transform, 0, index, &type) < 0 ? IntPtr.Zero : type;
+        return ((delegate* unmanaged[Stdcall]<IntPtr, uint, uint, IntPtr*, int>)Com.Vtbl(transform)[GetInputAvailableTypeSlot])(transform, 0, index, &type) < 0 ? IntPtr.Zero : type;
     }
 
     public static IntPtr GetOutputAvailableType(IntPtr transform, uint index)
     {
         IntPtr type;
-        return ((delegate* unmanaged[Stdcall]<IntPtr, uint, uint, IntPtr*, int>)Vtbl(transform)[GetOutputAvailableTypeSlot])(transform, 0, index, &type) < 0 ? IntPtr.Zero : type;
+        return ((delegate* unmanaged[Stdcall]<IntPtr, uint, uint, IntPtr*, int>)Com.Vtbl(transform)[GetOutputAvailableTypeSlot])(transform, 0, index, &type) < 0 ? IntPtr.Zero : type;
     }
 
     public static int SetInputType(IntPtr transform, IntPtr type) =>
-        ((delegate* unmanaged[Stdcall]<IntPtr, uint, IntPtr, uint, int>)Vtbl(transform)[SetInputTypeSlot])(transform, 0, type, 0);
+        ((delegate* unmanaged[Stdcall]<IntPtr, uint, IntPtr, uint, int>)Com.Vtbl(transform)[SetInputTypeSlot])(transform, 0, type, 0);
 
     public static int SetOutputType(IntPtr transform, IntPtr type) =>
-        ((delegate* unmanaged[Stdcall]<IntPtr, uint, IntPtr, uint, int>)Vtbl(transform)[SetOutputTypeSlot])(transform, 0, type, 0);
+        ((delegate* unmanaged[Stdcall]<IntPtr, uint, IntPtr, uint, int>)Com.Vtbl(transform)[SetOutputTypeSlot])(transform, 0, type, 0);
 
     public static int ProcessMessage(IntPtr transform, uint message) =>
-        ((delegate* unmanaged[Stdcall]<IntPtr, uint, nuint, int>)Vtbl(transform)[ProcessMessageSlot])(transform, message, 0);
+        ((delegate* unmanaged[Stdcall]<IntPtr, uint, nuint, int>)Com.Vtbl(transform)[ProcessMessageSlot])(transform, message, 0);
 
     public static int ProcessInput(IntPtr transform, IntPtr sample) =>
-        ((delegate* unmanaged[Stdcall]<IntPtr, uint, IntPtr, uint, int>)Vtbl(transform)[ProcessInputSlot])(transform, 0, sample, 0);
+        ((delegate* unmanaged[Stdcall]<IntPtr, uint, IntPtr, uint, int>)Com.Vtbl(transform)[ProcessInputSlot])(transform, 0, sample, 0);
 
     public static int ProcessOutput(IntPtr transform, OutputDataBuffer* buffer)
     {
         uint status;
-        return ((delegate* unmanaged[Stdcall]<IntPtr, uint, uint, OutputDataBuffer*, uint*, int>)Vtbl(transform)[ProcessOutputSlot])(transform, 0, 1, buffer, &status);
+        return ((delegate* unmanaged[Stdcall]<IntPtr, uint, uint, OutputDataBuffer*, uint*, int>)Com.Vtbl(transform)[ProcessOutputSlot])(transform, 0, 1, buffer, &status);
     }
 
     //--------------------------------------------------------------------------------
@@ -364,20 +353,20 @@ internal static unsafe partial class MediaFoundation
     public static long GetSampleTime(IntPtr sample)
     {
         long time;
-        return ((delegate* unmanaged[Stdcall]<IntPtr, long*, int>)Vtbl(sample)[GetSampleTimeSlot])(sample, &time) < 0 ? 0 : time;
+        return ((delegate* unmanaged[Stdcall]<IntPtr, long*, int>)Com.Vtbl(sample)[GetSampleTimeSlot])(sample, &time) < 0 ? 0 : time;
     }
 
     public static void SetSampleTime(IntPtr sample, long time, long duration)
     {
-        ((delegate* unmanaged[Stdcall]<IntPtr, long, int>)Vtbl(sample)[SetSampleTimeSlot])(sample, time);
-        ((delegate* unmanaged[Stdcall]<IntPtr, long, int>)Vtbl(sample)[SetSampleDurationSlot])(sample, duration);
+        ((delegate* unmanaged[Stdcall]<IntPtr, long, int>)Com.Vtbl(sample)[SetSampleTimeSlot])(sample, time);
+        ((delegate* unmanaged[Stdcall]<IntPtr, long, int>)Com.Vtbl(sample)[SetSampleDurationSlot])(sample, duration);
     }
 
     // The buffer has a reference
     public static int ConvertToContiguousBuffer(IntPtr sample, out IntPtr buffer)
     {
         IntPtr pointer;
-        var hr = ((delegate* unmanaged[Stdcall]<IntPtr, IntPtr*, int>)Vtbl(sample)[ConvertToContiguousBufferSlot])(sample, &pointer);
+        var hr = ((delegate* unmanaged[Stdcall]<IntPtr, IntPtr*, int>)Com.Vtbl(sample)[ConvertToContiguousBufferSlot])(sample, &pointer);
         buffer = hr < 0 ? IntPtr.Zero : pointer;
         return hr;
     }
@@ -387,17 +376,17 @@ internal static unsafe partial class MediaFoundation
         byte* pointer;
         uint max;
         uint current;
-        var hr = ((delegate* unmanaged[Stdcall]<IntPtr, byte**, uint*, uint*, int>)Vtbl(buffer)[LockSlot])(buffer, &pointer, &max, &current);
+        var hr = ((delegate* unmanaged[Stdcall]<IntPtr, byte**, uint*, uint*, int>)Com.Vtbl(buffer)[LockSlot])(buffer, &pointer, &max, &current);
         data = pointer;
         length = (int)current;
         return hr;
     }
 
     public static void Unlock(IntPtr buffer) =>
-        ((delegate* unmanaged[Stdcall]<IntPtr, int>)Vtbl(buffer)[UnlockSlot])(buffer);
+        ((delegate* unmanaged[Stdcall]<IntPtr, int>)Com.Vtbl(buffer)[UnlockSlot])(buffer);
 
     public static void SetCurrentLength(IntPtr buffer, int length) =>
-        ((delegate* unmanaged[Stdcall]<IntPtr, uint, int>)Vtbl(buffer)[SetCurrentLengthSlot])(buffer, (uint)length);
+        ((delegate* unmanaged[Stdcall]<IntPtr, uint, int>)Com.Vtbl(buffer)[SetCurrentLengthSlot])(buffer, (uint)length);
 
     //--------------------------------------------------------------------------------
     // IMFMediaEventGenerator / ICodecAPI / IMFShutdown
@@ -408,7 +397,7 @@ internal static unsafe partial class MediaFoundation
     public static int GetEvent(IntPtr generator, bool wait, out uint type, out int status)
     {
         IntPtr mediaEvent;
-        var hr = ((delegate* unmanaged[Stdcall]<IntPtr, uint, IntPtr*, int>)Vtbl(generator)[GetEventSlot])(generator, wait ? 0 : EventNoWait, &mediaEvent);
+        var hr = ((delegate* unmanaged[Stdcall]<IntPtr, uint, IntPtr*, int>)Com.Vtbl(generator)[GetEventSlot])(generator, wait ? 0 : EventNoWait, &mediaEvent);
         if (hr < 0)
         {
             type = 0;
@@ -418,9 +407,9 @@ internal static unsafe partial class MediaFoundation
 
         uint eventType;
         int eventStatus;
-        ((delegate* unmanaged[Stdcall]<IntPtr, uint*, int>)Vtbl(mediaEvent)[GetTypeSlot])(mediaEvent, &eventType);
-        ((delegate* unmanaged[Stdcall]<IntPtr, int*, int>)Vtbl(mediaEvent)[GetStatusSlot])(mediaEvent, &eventStatus);
-        Release(mediaEvent);
+        ((delegate* unmanaged[Stdcall]<IntPtr, uint*, int>)Com.Vtbl(mediaEvent)[GetTypeSlot])(mediaEvent, &eventType);
+        ((delegate* unmanaged[Stdcall]<IntPtr, int*, int>)Com.Vtbl(mediaEvent)[GetStatusSlot])(mediaEvent, &eventStatus);
+        Com.Release(mediaEvent);
         type = eventType;
         status = eventStatus;
         return hr;
@@ -429,17 +418,17 @@ internal static unsafe partial class MediaFoundation
     public static int SetCodecValue(IntPtr codecApi, Guid property, uint value)
     {
         var variant = new Variant { Type = VariantUInt32, UInt32 = value };
-        return ((delegate* unmanaged[Stdcall]<IntPtr, Guid*, Variant*, int>)Vtbl(codecApi)[SetValueSlot])(codecApi, &property, &variant);
+        return ((delegate* unmanaged[Stdcall]<IntPtr, Guid*, Variant*, int>)Com.Vtbl(codecApi)[SetValueSlot])(codecApi, &property, &variant);
     }
 
     public static int SetCodecValue(IntPtr codecApi, Guid property, bool value)
     {
         var variant = new Variant { Type = VariantBool, Bool = value ? (short)-1 : (short)0 };
-        return ((delegate* unmanaged[Stdcall]<IntPtr, Guid*, Variant*, int>)Vtbl(codecApi)[SetValueSlot])(codecApi, &property, &variant);
+        return ((delegate* unmanaged[Stdcall]<IntPtr, Guid*, Variant*, int>)Com.Vtbl(codecApi)[SetValueSlot])(codecApi, &property, &variant);
     }
 
     public static void Shutdown(IntPtr shutdown) =>
-        ((delegate* unmanaged[Stdcall]<IntPtr, int>)Vtbl(shutdown)[ShutdownSlot])(shutdown);
+        ((delegate* unmanaged[Stdcall]<IntPtr, int>)Com.Vtbl(shutdown)[ShutdownSlot])(shutdown);
 
     //--------------------------------------------------------------------------------
     // Native

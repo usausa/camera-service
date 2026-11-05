@@ -27,7 +27,7 @@ public sealed class ImageConverterTests
         var uvStride = (((width + 1) / 2) * 2) + padding;
         var source = TestData.CreateRandom(sourceStride * height, 3);
 
-        foreach (var range in Enum.GetValues<YuvRange>())
+        foreach (var range in Enum.GetValues<VideoColorRange>())
         {
             var expectedY = new byte[yStride * height];
             var expectedUv = new byte[uvStride * ((height + 1) / 2)];
@@ -60,7 +60,7 @@ public sealed class ImageConverterTests
         var uvPlane = new byte[width];
 
         // Act
-        ImageConverter.Yuy2ToNv12(source, width * 2, yPlane, width, uvPlane, width, width, height, YuvRange.Limited);
+        ImageConverter.Yuy2ToNv12(source, width * 2, yPlane, width, uvPlane, width, width, height, VideoColorRange.Limited);
 
         // Assert
         Assert.All(yPlane, x => Assert.Equal(expectedY, x));
@@ -90,7 +90,7 @@ public sealed class ImageConverterTests
         var uvPlane = new byte[width];
 
         // Act
-        ImageConverter.Yuy2ToNv12(source, width * 2, yPlane, width, uvPlane, width, width, height, YuvRange.Full);
+        ImageConverter.Yuy2ToNv12(source, width * 2, yPlane, width, uvPlane, width, width, height, VideoColorRange.Full);
 
         // Assert
         for (var x = 0; x < width; x++)
@@ -173,7 +173,7 @@ public sealed class ImageConverterTests
         var y = new byte[16 * 2];
         var uv = new byte[16 - 1];
 
-        Assert.Throws<ArgumentException>(() => ImageConverter.Yuy2ToNv12(source, 16 * 2, y, 16, uv, 16, 16, 2, YuvRange.Limited));
+        Assert.Throws<ArgumentException>(() => ImageConverter.Yuy2ToNv12(source, 16 * 2, y, 16, uv, 16, 16, 2, VideoColorRange.Limited));
     }
 
     [Fact]

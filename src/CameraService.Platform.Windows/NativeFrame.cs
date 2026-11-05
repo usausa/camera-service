@@ -6,8 +6,8 @@ using CameraService.Core;
 
 using global::Windows.Graphics.Imaging;
 
-// Reads the latest frame through the COM vtable without creating projection objects.
-// Getting SoftwareBitmap through the projection adds GC memory pressure and induces gen2 GC.
+// Reads the latest frame through the COM vtable without creating projection objects,
+// so that a frame adds no GC memory pressure.
 internal unsafe ref struct NativeFrame
 {
     // IInspectable based interfaces start at slot 6
@@ -98,7 +98,7 @@ internal unsafe ref struct NativeFrame
         if ((Invoke(frame, SystemRelativeTimeSlot, &value) >= 0) && (value != IntPtr.Zero))
         {
             long ticks;
-            if (((delegate* unmanaged[Stdcall]<IntPtr, long*, int>)Vtbl(value)[ReferenceValueSlot])(value, &ticks) >= 0)
+            if (((delegate* unmanaged[Stdcall]<IntPtr, long*, int>)Com.Vtbl(value)[ReferenceValueSlot])(value, &ticks) >= 0)
             {
                 CaptureTime = new TimeSpan(ticks);
             }
@@ -133,7 +133,7 @@ internal unsafe ref struct NativeFrame
         }
 
         // ISoftwareBitmap.LockBuffer
-        if ((((delegate* unmanaged[Stdcall]<IntPtr, int, IntPtr*, int>)Vtbl(bitmap)[LockBufferSlot])(bitmap, (int)BitmapBufferAccessMode.Read, &value) < 0) ||
+        if ((((delegate* unmanaged[Stdcall]<IntPtr, int, IntPtr*, int>)Com.Vtbl(bitmap)[LockBufferSlot])(bitmap, (int)BitmapBufferAccessMode.Read, &value) < 0) ||
             (value == IntPtr.Zero))
         {
             return;
@@ -175,7 +175,7 @@ internal unsafe ref struct NativeFrame
 
         byte* data;
         uint capacity;
-        result = ((delegate* unmanaged[Stdcall]<IntPtr, byte**, uint*, int>)Vtbl(byteAccess)[GetBufferSlot])(byteAccess, &data, &capacity);
+        result = ((delegate* unmanaged[Stdcall]<IntPtr, byte**, uint*, int>)Com.Vtbl(byteAccess)[GetBufferSlot])(byteAccess, &data, &capacity);
         Marshal.Release(byteAccess);
         if ((result < 0) || (data is null))
         {
@@ -191,16 +191,14 @@ internal unsafe ref struct NativeFrame
         Plane1 = planeCount > 1 ? new FramePlane(plane1.StartIndex, plane1.Width, plane1.Height, plane1.Stride) : default;
     }
 
-    private static void** Vtbl(IntPtr pointer) => *(void***)pointer;
-
     private static int Invoke(IntPtr pointer, int slot, IntPtr* value) =>
-        ((delegate* unmanaged[Stdcall]<IntPtr, IntPtr*, int>)Vtbl(pointer)[slot])(pointer, value);
+        ((delegate* unmanaged[Stdcall]<IntPtr, IntPtr*, int>)Com.Vtbl(pointer)[slot])(pointer, value);
 
     private static int InvokeInt(IntPtr pointer, int slot, int* value) =>
-        ((delegate* unmanaged[Stdcall]<IntPtr, int*, int>)Vtbl(pointer)[slot])(pointer, value);
+        ((delegate* unmanaged[Stdcall]<IntPtr, int*, int>)Com.Vtbl(pointer)[slot])(pointer, value);
 
     private static int GetPlaneDescription(IntPtr buffer, int index, BitmapPlaneDescription* value) =>
-        ((delegate* unmanaged[Stdcall]<IntPtr, int, BitmapPlaneDescription*, int>)Vtbl(buffer)[GetPlaneDescriptionSlot])(buffer, index, value);
+        ((delegate* unmanaged[Stdcall]<IntPtr, int, BitmapPlaneDescription*, int>)Com.Vtbl(buffer)[GetPlaneDescriptionSlot])(buffer, index, value);
 
     private static void Release(ref IntPtr pointer, bool close)
     {
@@ -211,7 +209,7 @@ internal unsafe ref struct NativeFrame
 
         if (close && (Marshal.QueryInterface(pointer, in IidClosable, out var closable) >= 0))
         {
-            ((delegate* unmanaged[Stdcall]<IntPtr, int>)Vtbl(closable)[CloseSlot])(closable);
+            ((delegate* unmanaged[Stdcall]<IntPtr, int>)Com.Vtbl(closable)[CloseSlot])(closable);
             Marshal.Release(closable);
         }
 

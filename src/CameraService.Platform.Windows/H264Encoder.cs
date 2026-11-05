@@ -153,7 +153,7 @@ public sealed unsafe class H264Encoder : IH264Encoder
                     if (shutdown != IntPtr.Zero)
                     {
                         MediaFoundation.Shutdown(shutdown);
-                        MediaFoundation.Release(shutdown);
+                        Com.Release(shutdown);
                     }
                 }
             }
@@ -243,7 +243,7 @@ public sealed unsafe class H264Encoder : IH264Encoder
             try
             {
                 var ySize = width * height;
-                ImageConverter.Yuy2ToNv12(yuy2, stride, new Span<byte>(data, ySize), width, new Span<byte>(data + ySize, ySize / 2), width, width, height, YuvRange.Full);
+                ImageConverter.Yuy2ToNv12(yuy2, stride, new Span<byte>(data, ySize), width, new Span<byte>(data + ySize, ySize / 2), width, width, height, VideoColorRange.Full);
             }
             finally
             {
@@ -511,13 +511,13 @@ public sealed unsafe class H264Encoder : IH264Encoder
     {
         var buffer = new MediaFoundation.OutputDataBuffer { Sample = providesSamples ? IntPtr.Zero : outputSample };
         var hr = MediaFoundation.ProcessOutput(transform, &buffer);
-        MediaFoundation.Release(buffer.Events);
+        Com.Release(buffer.Events);
         if (hr == MediaFoundation.TransformStreamChange)
         {
             // The output type is set again
             var type = MediaFoundation.GetOutputAvailableType(transform, 0);
             hr = type != IntPtr.Zero ? MediaFoundation.SetOutputType(transform, type) : UnspecifiedError;
-            MediaFoundation.Release(type);
+            Com.Release(type);
             if (hr < 0)
             {
                 Fault(hr);
@@ -546,7 +546,7 @@ public sealed unsafe class H264Encoder : IH264Encoder
         {
             if (providesSamples)
             {
-                MediaFoundation.Release(buffer.Sample);
+                Com.Release(buffer.Sample);
             }
         }
 
@@ -580,7 +580,7 @@ public sealed unsafe class H264Encoder : IH264Encoder
         }
         finally
         {
-            MediaFoundation.Release(buffer);
+            Com.Release(buffer);
         }
     }
 
@@ -596,7 +596,6 @@ public sealed unsafe class H264Encoder : IH264Encoder
         }
 
         // Hardware encoders first, the first one that accepts the settings and starts streaming is used
-        // (a hardware encoder can fail to start, for example when its sessions are used up by other applications)
         var candidates = new List<(IntPtr Activate, string Name, bool Hardware)>();
         var lastError = 0;
         try
@@ -624,7 +623,7 @@ public sealed unsafe class H264Encoder : IH264Encoder
             {
                 if (candidate.Activate != activate)
                 {
-                    MediaFoundation.Release(candidate.Activate);
+                    Com.Release(candidate.Activate);
                 }
             }
         }
@@ -663,7 +662,7 @@ public sealed unsafe class H264Encoder : IH264Encoder
                 }
                 finally
                 {
-                    MediaFoundation.Release(attributes);
+                    Com.Release(attributes);
                 }
             }
 
@@ -714,16 +713,16 @@ public sealed unsafe class H264Encoder : IH264Encoder
         {
             if (!succeeded)
             {
-                MediaFoundation.Release(candidateOutputSample);
-                MediaFoundation.Release(candidateEvents);
-                MediaFoundation.Release(candidateCodecApi);
-                MediaFoundation.Release(candidate);
+                Com.Release(candidateOutputSample);
+                Com.Release(candidateEvents);
+                Com.Release(candidateCodecApi);
+                Com.Release(candidate);
                 MediaFoundation.ShutdownObject(candidateActivate);
             }
         }
     }
 
-    // Unsupported values are ignored (for example the B frame count of a hardware encoder that has no B frames)
+    // Unsupported values are ignored
     private void SetCodecValues(IntPtr candidateCodecApi)
     {
         if (candidateCodecApi == IntPtr.Zero)
@@ -759,7 +758,7 @@ public sealed unsafe class H264Encoder : IH264Encoder
         }
         finally
         {
-            MediaFoundation.Release(output);
+            Com.Release(output);
         }
 
         var input = MediaFoundation.CreateVideoType(MediaFoundation.FormatNv12, width, height, options.FrameRate);
@@ -777,7 +776,7 @@ public sealed unsafe class H264Encoder : IH264Encoder
         }
         finally
         {
-            MediaFoundation.Release(input);
+            Com.Release(input);
         }
 
         // An NV12 type offered by the encoder
@@ -807,13 +806,12 @@ public sealed unsafe class H264Encoder : IH264Encoder
             }
             finally
             {
-                MediaFoundation.Release(available);
+                Com.Release(available);
             }
         }
     }
 
     // Range and colors of the input written to the stream (VUI): BT.601 matrix as the converters of this project, BT.709 primaries and transfer.
-    // The NVIDIA encoder writes all of them, the Microsoft software encoder only the range (a decoder then assumes the BT.709 matrix).
     private void SetColor(IntPtr type)
     {
         MediaFoundation.SetUInt32(type, MediaFoundation.NominalRange, options.FullRange ? MediaFoundation.NominalRangeFull : MediaFoundation.NominalRangeVideo);
@@ -835,20 +833,20 @@ public sealed unsafe class H264Encoder : IH264Encoder
             released = true;
             for (var i = 0; i < InputCount; i++)
             {
-                MediaFoundation.Release(inputSamples[i]);
+                Com.Release(inputSamples[i]);
                 inputSamples[i] = IntPtr.Zero;
                 inputBuffers[i] = IntPtr.Zero;
             }
         }
 
-        MediaFoundation.Release(outputSample);
-        MediaFoundation.Release(events);
-        MediaFoundation.Release(codecApi);
-        MediaFoundation.Release(transform);
+        Com.Release(outputSample);
+        Com.Release(events);
+        Com.Release(codecApi);
+        Com.Release(transform);
         if (activate != IntPtr.Zero)
         {
             MediaFoundation.ShutdownObject(activate);
-            MediaFoundation.Release(activate);
+            Com.Release(activate);
         }
 
         outputSample = IntPtr.Zero;

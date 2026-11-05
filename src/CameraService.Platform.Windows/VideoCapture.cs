@@ -35,8 +35,6 @@ public sealed class VideoCapture : IVideoCapture
 
     public VideoFormat Format { get; private set; }
 
-    public VideoPixelFormat OutputPixelFormat { get; private set; }
-
     // Color range of YUV output
     public VideoColorRange ColorRange { get; private set; }
 
@@ -49,8 +47,7 @@ public sealed class VideoCapture : IVideoCapture
 
     public async ValueTask DisposeAsync() => await CloseAsync().ConfigureAwait(false);
 
-    // outputPixelFormat: Unknown = native format, otherwise converted by MediaFrameReader
-    public async Task OpenAsync(VideoFormat format, VideoPixelFormat outputPixelFormat = VideoPixelFormat.Unknown)
+    public async Task OpenAsync(VideoFormat format)
     {
         if (IsOpen)
         {
@@ -74,20 +71,17 @@ public sealed class VideoCapture : IVideoCapture
 
             var source = capture.FrameSources.Values.FirstOrDefault(static x => x.Info.SourceKind == MediaFrameSourceKind.Color) ??
                          throw new InvalidOperationException("Color source not found.");
-            var mediaFormat = source.SupportedFormats.FirstOrDefault(x => FormatHelper.IsMatch(x, format)) ??
+            var mediaFormat = source.SupportedFormats.FirstOrDefault(x => FormatHelper.ToVideoFormat(x).Matches(format)) ??
                               throw new InvalidOperationException("Format not supported.");
             await source.SetFormatAsync(mediaFormat).AsTask().ConfigureAwait(false);
 
-            reader = outputPixelFormat == VideoPixelFormat.Unknown
-                ? await capture.CreateFrameReaderAsync(source).AsTask().ConfigureAwait(false)
-                : await capture.CreateFrameReaderAsync(source, FormatHelper.ToSubtype(outputPixelFormat)).AsTask().ConfigureAwait(false);
+            reader = await capture.CreateFrameReaderAsync(source).AsTask().ConfigureAwait(false);
             reader.AcquisitionMode = MediaFrameReaderAcquisitionMode.Realtime;
             frameArrived = FrameArrivedSubscription.Subscribe(reader, OnFrameArrived);
             capture.Failed += OnFailed;
 
             Format = format;
-            OutputPixelFormat = outputPixelFormat == VideoPixelFormat.Unknown ? format.PixelFormat : outputPixelFormat;
-            ColorRange = outputPixelFormat == VideoPixelFormat.Unknown ? FormatHelper.GetColorRange(mediaFormat) : VideoColorRange.Unknown;
+            ColorRange = FormatHelper.GetColorRange(mediaFormat);
             mediaCapture = capture;
             frameReader = reader;
         }

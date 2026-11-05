@@ -1,5 +1,6 @@
 namespace CameraService.Host.Services;
 
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 
 using CameraService.Core;
@@ -10,6 +11,9 @@ using CameraService.Host.Settings;
 // so that a frame does not keep a buffer of the largest size. Everything is released when the camera closes.
 public sealed class JpegPublisher : IDisposable
 {
+    // The waiting clients keep the camera open, so a close does not clear a failure
+    private static readonly TimeSpan DefaultRetryInterval = TimeSpan.FromSeconds(10);
+
     private readonly ILogger log;
 
     private readonly CameraChannel channel;
@@ -19,6 +23,8 @@ public sealed class JpegPublisher : IDisposable
     private readonly int quality;
 
     private readonly TimeSpan interval;
+
+    private readonly TimeSpan retryInterval;
 
     private readonly FramePool pool = new();
 
@@ -34,7 +40,8 @@ public sealed class JpegPublisher : IDisposable
 
     private TimeSpan lastCaptureTime;
 
-    private bool failed;
+    // Stopwatch timestamp of the last failure, 0 while the encoder works
+    private long failedTimestamp;
 
     private long encodedFrames;
 
@@ -47,10 +54,16 @@ public sealed class JpegPublisher : IDisposable
     public long EncodedBytes => Interlocked.Read(ref encodedBytes);
 
     public JpegPublisher(ILogger log, CameraChannel channel, IJpegEncoderFactory encoderFactory, StreamSetting setting)
+        : this(log, channel, encoderFactory, setting, DefaultRetryInterval)
+    {
+    }
+
+    internal JpegPublisher(ILogger log, CameraChannel channel, IJpegEncoderFactory encoderFactory, StreamSetting setting, TimeSpan retryInterval)
     {
         this.log = log;
         this.channel = channel;
         this.encoderFactory = encoderFactory;
+        this.retryInterval = retryInterval;
         quality = setting.Quality;
         // A little shorter, so that the frames of the camera are not thinned out more than needed (30 fps to 10 fps is every third)
         interval = TimeSpan.FromSeconds(0.9 / setting.Fps);
@@ -68,7 +81,7 @@ public sealed class JpegPublisher : IDisposable
     // Capture thread
     private void OnFrameCaptured(object? sender, FrameCapturedEventArgs e)
     {
-        if (!Hub.HasClients || failed)
+        if (!Hub.HasClients || ((failedTimestamp != 0) && (Stopwatch.GetElapsedTime(failedTimestamp) < retryInterval)))
         {
             return;
         }
@@ -100,6 +113,7 @@ public sealed class JpegPublisher : IDisposable
             }
 
             encoded = true;
+            failedTimestamp = 0;
             lastCaptureTime = frame.CaptureTime;
             var jpeg = pool.Rent();
             work.AsSpan(0, written).CopyTo(jpeg.GetBuffer(written));
@@ -108,10 +122,12 @@ public sealed class JpegPublisher : IDisposable
             Interlocked.Add(ref encodedBytes, written);
             Hub.Publish(jpeg);
         }
-        catch (Exception ex) when (ex is ArgumentException or COMException)
+        catch (Exception ex) when (ex is ArgumentException or COMException or InvalidOperationException)
         {
-            // Unexpected buffer layout or encoder error, not tried again until the camera opens again
-            failed = true;
+            // Unexpected buffer layout or encoder error, tried again with a new encoder after the interval
+            encoder?.Dispose();
+            encoder = null;
+            failedTimestamp = Stopwatch.GetTimestamp();
             log.ErrorEncodeFailed(ex, channel.Id);
         }
     }
@@ -126,7 +142,7 @@ public sealed class JpegPublisher : IDisposable
         planes = null;
         work = [];
         encoded = false;
-        failed = false;
+        failedTimestamp = 0;
         Hub.Clear();
         pool.Clear();
     }

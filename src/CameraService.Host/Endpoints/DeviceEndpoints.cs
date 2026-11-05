@@ -9,7 +9,7 @@ public static class DeviceEndpoints
         app.MapGet("/api/devices", HandleDevicesAsync);
     }
 
-    // The cameras of the PC with their formats, for the settings (a camera in use by another application may be missing)
+    // The cameras with their formats, for the settings
     private static async Task<DeviceResponse[]> HandleDevicesAsync(ICameraProvider provider)
     {
         var devices = await provider.GetDevicesAsync();

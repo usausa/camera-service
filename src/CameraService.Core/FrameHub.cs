@@ -203,6 +203,12 @@ public sealed class FrameSubscription : IValueTaskSource<EncodedFrame>, IDisposa
     {
         source.Reset();
         IsWaiting = true;
+
+        // A cancel just before the wait found nothing to cancel (the hub lock orders the two)
+        if (cancellationToken.IsCancellationRequested)
+        {
+            Fail(new OperationCanceledException(cancellationToken));
+        }
     }
 
     internal void Deliver(EncodedFrame frame)

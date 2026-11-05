@@ -4,8 +4,7 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 
 // Live view of a camera: H.264 where the browser can decode it, otherwise MJPEG (decided by the script).
-// The image or the connection is created by the script and stopped when the view is removed
-// (a browser may keep loading an image that was only removed from the page).
+// The canvas and the connection are created by the script and stopped when the view is removed.
 public sealed partial class LiveView : IAsyncDisposable
 {
     private readonly string key = Guid.NewGuid().ToString("N");

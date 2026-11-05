@@ -72,7 +72,7 @@ public sealed class HealthTests
             Assert.Equal(HttpStatusCode.OK, opened.StatusCode);
         });
 
-    // The folder cannot be created (the name has a character that Windows does not accept)
+    // The folder cannot be created (the name has an invalid character)
     [Fact]
     public Task FolderThatCannotBeWrittenIsUnhealthy() =>
         ServiceTestServer.RunAsync(

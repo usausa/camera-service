@@ -26,7 +26,7 @@ public sealed class StreamEndpointsTests
             Assert.All(parts, static x => Assert.Equal((TestCameraProvider.Width, TestCameraProvider.Height), MjpegReader.GetJpegSize(x)));
         });
 
-    // The viewer reads the same stream with fetch, a browser may refuse a multipart response for anything other than an image
+    // The viewer reads the same stream with fetch
     [Fact]
     public Task RawMjpegHasOtherContentType() =>
         ServiceTestServer.RunAsync(null, static async (server, cancellationToken) =>

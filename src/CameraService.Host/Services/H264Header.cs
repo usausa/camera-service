@@ -3,7 +3,6 @@ namespace CameraService.Host.Services;
 using System.Buffers.Binary;
 
 // Header of a binary message of the H.264 WebSocket (little endian), followed by the access unit in Annex B.
-// The layout of the header of tool-camera without the sections of the detections.
 //  0 uint16  version
 //  2 uint16  header length (offset of the data)
 //  4 uint16  width

@@ -204,6 +204,23 @@ public sealed class FrameHubTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => wait).ConfigureAwait(true);
     }
 
+    // The cancel came after the check of WaitAsync and before the wait, so it found nothing to cancel
+    [Fact]
+    public async Task CancelBeforeWaitEndsWait()
+    {
+        // Arrange
+        using var cancellation = new CancellationTokenSource();
+        using var subscription = hub.Subscribe(cancellation.Token);
+        await cancellation.CancelAsync().ConfigureAwait(true);
+
+        // Act
+        var acquired = hub.TryAcquireOrWait(subscription, out _);
+
+        // Assert (not waiting for a frame that may not come)
+        Assert.False(acquired);
+        Assert.False(subscription.IsWaiting);
+    }
+
     [Fact]
     public async Task CanceledSubscriptionFailsAtOnce()
     {

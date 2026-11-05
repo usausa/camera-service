@@ -20,11 +20,11 @@ public sealed class H264Publisher : IAsyncDisposable
 
     private const int BitsPerKilobit = 1000;
 
-    // NVENC takes about 0.7 seconds to be created, so it is kept for a while
-    private static readonly TimeSpan IdleTime = TimeSpan.FromSeconds(10);
+    // Creating an encoder takes time, so it is kept for a while
+    private static readonly TimeSpan DefaultIdleTime = TimeSpan.FromSeconds(10);
 
     // The device may come back or free its sessions
-    private static readonly TimeSpan RetryInterval = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan DefaultRetryInterval = TimeSpan.FromSeconds(10);
 
     // A slow client that skips frames must not make every frame a key frame
     private static readonly TimeSpan KeyFrameRequestInterval = TimeSpan.FromMilliseconds(500);
@@ -36,6 +36,10 @@ public sealed class H264Publisher : IAsyncDisposable
     private readonly IH264EncoderFactory encoderFactory;
 
     private readonly H264Setting setting;
+
+    private readonly TimeSpan idleTime;
+
+    private readonly TimeSpan retryInterval;
 
     private readonly FramePool pool = new();
 
@@ -64,6 +68,9 @@ public sealed class H264Publisher : IAsyncDisposable
     private CancellationTokenSource failure = new();
 
     private bool stopped;
+
+    // Logged once until a frame is passed to the encoder again
+    private bool layoutFailed;
 
     private long releasedDroppedFrames;
 
@@ -111,11 +118,18 @@ public sealed class H264Publisher : IAsyncDisposable
     }
 
     public H264Publisher(ILogger log, CameraChannel channel, IH264EncoderFactory encoderFactory, H264Setting setting)
+        : this(log, channel, encoderFactory, setting, DefaultIdleTime, DefaultRetryInterval)
+    {
+    }
+
+    internal H264Publisher(ILogger log, CameraChannel channel, IH264EncoderFactory encoderFactory, H264Setting setting, TimeSpan idleTime, TimeSpan retryInterval)
     {
         this.log = log;
         this.channel = channel;
         this.encoderFactory = encoderFactory;
         this.setting = setting;
+        this.idleTime = idleTime;
+        this.retryInterval = retryInterval;
         channel.FrameCaptured += OnFrameCaptured;
     }
 
@@ -167,7 +181,7 @@ public sealed class H264Publisher : IAsyncDisposable
         lock (encoderSync)
         {
             if (!stopped && (encoder is not null) && replaceTask is not { IsCompleted: false } &&
-                (Stopwatch.GetElapsedTime(Interlocked.Read(ref lastClientTimestamp)) > IdleTime))
+                (Stopwatch.GetElapsedTime(Interlocked.Read(ref lastClientTimestamp)) > idleTime))
             {
                 Replace(default);
             }
@@ -325,7 +339,7 @@ public sealed class H264Publisher : IAsyncDisposable
             var format = new EncoderFormat(frame.Width, frame.Height, frame.ColorRange == VideoColorRange.Full);
             if ((encoder is null) || (encoderFormat != format))
             {
-                if ((encoder is not null) || (failedFormat != format) || (Stopwatch.GetElapsedTime(failedTimestamp) > RetryInterval))
+                if ((encoder is not null) || (failedFormat != format) || (Stopwatch.GetElapsedTime(failedTimestamp) > retryInterval))
                 {
                     Replace(format);
                 }
@@ -368,11 +382,17 @@ public sealed class H264Publisher : IAsyncDisposable
         }
         catch (ArgumentException ex)
         {
-            // Unexpected buffer layout
-            log.ErrorEncodeFailed(ex, channel.Id);
+            // Unexpected buffer layout, also for the next frames
+            if (!layoutFailed)
+            {
+                layoutFailed = true;
+                log.ErrorEncodeFailed(ex, channel.Id);
+            }
+
             return;
         }
 
+        layoutFailed = false;
         if (current.IsFaulted)
         {
             // Released, and created again after the retry interval

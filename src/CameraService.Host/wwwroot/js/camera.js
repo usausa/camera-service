@@ -1,5 +1,5 @@
 // Live views by key, kept here so that a stream can be stopped after Blazor removed the element.
-// H.264 (WebSocket + WebCodecs) where the browser can decode it (WebCodecs needs localhost or HTTPS), otherwise MJPEG (fetch).
+// H.264 (WebSocket + WebCodecs) where the browser can decode it, otherwise MJPEG (fetch).
 // Both are drawn on a canvas and connect again when the connection is lost, the label shows that the picture is old meanwhile.
 
 // Header of an H.264 message (little endian), see H264Header.cs
@@ -28,7 +28,7 @@ const MJPEG_BUFFER_SIZE = 256 * 1024;
 
 const RECONNECT_DELAY = 1000;
 
-// No data for this time: the label tells that the picture is old (the first frame takes about 3 seconds when the camera is closed)
+// No data for this time: the label tells that the picture is old
 const STALE_TIMEOUT = 5000;
 
 // No data for this time: the connection is lost without a close (for example the network went down) or the camera sends nothing
@@ -44,7 +44,7 @@ const views = new Map();
 export function start(container, key, mjpegUrl, h264Url) {
     stop(key);
 
-    // The element is gone (an error here would end the Blazor circuit)
+    // The element is gone
     if (container === null) {
         return;
     }
@@ -501,9 +501,8 @@ function decode(view, frame) {
             try {
                 view.decoder ??= createDecoder(view);
                 // Annex B (no description), the frames are output in the decode order.
-                // The colors are given because the software encoder writes the range without the colour description,
-                // which a decoder ignores (the YUV is BT.601 as the JPEG, the primaries and the transfer are BT.709 / sRGB).
-                // The browser decides on the hardware decoding ('prefer-hardware' fails where it is not available).
+                // The colors are given, so that they are the same with any encoder (the YUV is BT.601 as the JPEG, the primaries and the transfer are BT.709 / sRGB).
+                // The browser decides on the hardware decoding.
                 view.decoder.configure({
                     codec,
                     codedWidth: frame.width,

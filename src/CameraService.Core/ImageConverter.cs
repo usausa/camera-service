@@ -14,10 +14,10 @@ public static unsafe class ImageConverter
     //--------------------------------------------------------------------------------
 
     // Chroma of two rows is averaged (4:2:2 to 4:2:0)
-    public static void Yuy2ToNv12(ReadOnlySpan<byte> yuy2, int yuy2Stride, Span<byte> y, int yStride, Span<byte> uv, int uvStride, int width, int height, YuvRange range) =>
+    public static void Yuy2ToNv12(ReadOnlySpan<byte> yuy2, int yuy2Stride, Span<byte> y, int yStride, Span<byte> uv, int uvStride, int width, int height, VideoColorRange range) =>
         Yuy2ToNv12(yuy2, yuy2Stride, y, yStride, uv, uvStride, width, height, range, Ssse3.IsSupported);
 
-    internal static void Yuy2ToNv12(ReadOnlySpan<byte> yuy2, int yuy2Stride, Span<byte> y, int yStride, Span<byte> uv, int uvStride, int width, int height, YuvRange range, bool simd)
+    internal static void Yuy2ToNv12(ReadOnlySpan<byte> yuy2, int yuy2Stride, Span<byte> y, int yStride, Span<byte> uv, int uvStride, int width, int height, VideoColorRange range, bool simd)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
@@ -38,7 +38,8 @@ public static unsafe class ImageConverter
             throw new ArgumentException("Invalid UV plane.", nameof(uv));
         }
 
-        var limited = range == YuvRange.Limited;
+        // YUV without range information is treated as video range
+        var limited = range != VideoColorRange.Full;
         fixed (byte* sourcePointer = yuy2)
         {
             fixed (byte* yPointer = y)

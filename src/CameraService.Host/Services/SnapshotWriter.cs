@@ -18,10 +18,8 @@ public sealed class SnapshotWriter : ISchedulerJob, IDisposable
 
     private const string ProbeFileName = "write-test.tmp";
 
-    private const double GigaBytes = 1024d * 1024 * 1024;
-
-    // Includes opening the camera and the warm-up when the camera was not opened before
-    private static readonly TimeSpan CaptureTimeout = TimeSpan.FromSeconds(10);
+    // Where the time of the schedule is searched before the time of a run: the first holds a schedule of seconds, the last a run that waited for long
+    private static readonly TimeSpan[] ScheduleWindows = [TimeSpan.FromSeconds(2), TimeSpan.FromMinutes(2), TimeSpan.FromHours(2)];
 
     private readonly ILogger log;
 
@@ -33,10 +31,18 @@ public sealed class SnapshotWriter : ISchedulerJob, IDisposable
 
     private readonly SnapshotSetting setting;
 
+    private readonly CronExpression schedule;
+
+    // Includes opening the camera and the warm-up when the camera was not opened before
+    private readonly TimeSpan captureTimeout;
+
     // Completed by a frame on the capture thread
     private CaptureRequest? request;
 
     private CameraLease? preparedLease;
+
+    // UTC ticks of the scheduled time of the last run
+    private long lastRunTicks;
 
     private int running;
 
@@ -63,15 +69,17 @@ public sealed class SnapshotWriter : ISchedulerJob, IDisposable
 
     public long SavedCount => Interlocked.Read(ref savedCount);
 
-    public SnapshotWriter(ILogger log, CameraChannel channel, IJpegEncoderFactory encoderFactory, LocalTimeProvider timeProvider, SnapshotSetting setting, string folder, TimeSpan prepareTime)
+    public SnapshotWriter(ILogger log, CameraChannel channel, IJpegEncoderFactory encoderFactory, LocalTimeProvider timeProvider, SnapshotSetting setting, CameraSetting cameraSetting, string folder)
     {
         this.log = log;
         this.channel = channel;
         this.encoderFactory = encoderFactory;
         this.timeProvider = timeProvider;
         this.setting = setting;
+        schedule = CronExpression.Parse(setting.Schedule);
+        captureTimeout = cameraSetting.FirstFrameTimeout;
         Folder = folder;
-        PrepareTime = prepareTime;
+        PrepareTime = cameraSetting.PrepareTime;
         channel.FrameCaptured += OnFrameCaptured;
     }
 
@@ -85,10 +93,10 @@ public sealed class SnapshotWriter : ISchedulerJob, IDisposable
     // Lease
     //--------------------------------------------------------------------------------
 
-    // Opens the camera for the next run (called until the run takes the lease)
-    public void Prepare()
+    // Opens the camera for the run at the time (called until the run takes the lease)
+    public void Prepare(DateTimeOffset time)
     {
-        if (Volatile.Read(ref preparedLease) is not null)
+        if ((Volatile.Read(ref preparedLease) is not null) || HasStarted(time))
         {
             return;
         }
@@ -97,11 +105,20 @@ public sealed class SnapshotWriter : ISchedulerJob, IDisposable
         if (Interlocked.CompareExchange(ref preparedLease, lease, null) is not null)
         {
             lease.Dispose();
+            return;
+        }
+
+        // The run started meanwhile and did not see this lease: the camera would stay open until the next run
+        if (HasStarted(time))
+        {
+            ReleasePrepared();
         }
     }
 
     // Lets the camera close when the jobs stop
     public void ReleasePrepared() => Interlocked.Exchange(ref preparedLease, null)?.Dispose();
+
+    private bool HasStarted(DateTimeOffset time) => Volatile.Read(ref lastRunTicks) >= time.UtcTicks;
 
     //--------------------------------------------------------------------------------
     // Folder
@@ -117,7 +134,7 @@ public sealed class SnapshotWriter : ISchedulerJob, IDisposable
             File.WriteAllBytes(probe, []);
             File.Delete(probe);
             FolderError = null;
-            log.InfoSnapshotFolder(Id, Folder, SnapshotStorage.GetFreeSpace(Folder) / GigaBytes);
+            log.InfoSnapshotFolder(Id, Folder, SnapshotStorage.GetFreeSpace(Folder) / SnapshotStorage.GigaBytes);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -141,13 +158,38 @@ public sealed class SnapshotWriter : ISchedulerJob, IDisposable
 
         try
         {
+            // Before the lease is taken: a Prepare for this run that comes later sees it
+            var scheduled = GetScheduledTime(schedule, time);
+            Volatile.Write(ref lastRunTicks, scheduled.UtcTicks);
             using var lease = Interlocked.Exchange(ref preparedLease, null) ?? channel.Acquire();
-            await SaveAsync(time, cancellationToken).ConfigureAwait(false);
+            await SaveAsync(scheduled, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
             Volatile.Write(ref running, 0);
         }
+    }
+
+    // The last time of the schedule at or before the time of the run
+    internal static DateTimeOffset GetScheduledTime(CronExpression schedule, DateTimeOffset time)
+    {
+        foreach (var window in ScheduleWindows)
+        {
+            var from = time - window;
+            DateTimeOffset? found = null;
+            while ((schedule.GetNextOccurrence(from) is { } next) && (next <= time))
+            {
+                found = next;
+                from = next;
+            }
+
+            if (found is { } scheduled)
+            {
+                return scheduled;
+            }
+        }
+
+        return time;
     }
 
     private async Task SaveAsync(DateTimeOffset time, CancellationToken cancellationToken)
@@ -224,7 +266,7 @@ public sealed class SnapshotWriter : ISchedulerJob, IDisposable
         var source = current.Source;
         try
         {
-            return await source.Task.WaitAsync(CaptureTimeout, cancellationToken).ConfigureAwait(false);
+            return await source.Task.WaitAsync(captureTimeout, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is TimeoutException or OperationCanceledException)
         {

@@ -7,7 +7,7 @@ using CameraService.Host.Settings;
 using Mofucat.JobScheduler;
 
 // Runs the saving of the images of each camera and the deletion of the old images on their cron schedules (the deletion also at the start).
-// The scheduler is created here with the time provider of the local time, because it evaluates the cron expressions in the offset of the current time.
+// The scheduler is created here with the time provider of the local time, so that the cron expressions are in the local time.
 // The cameras are opened a little before their saves.
 public sealed class ScheduleWorker : BackgroundService
 {
@@ -74,7 +74,7 @@ public sealed class ScheduleWorker : BackgroundService
                 {
                     if ((handle.NextExecutionTime is { } next) && (next - now <= writer.PrepareTime))
                     {
-                        writer.Prepare();
+                        writer.Prepare(next);
                     }
                 }
             }

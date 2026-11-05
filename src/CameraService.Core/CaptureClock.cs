@@ -2,7 +2,7 @@ namespace CameraService.Core;
 
 using System.Diagnostics;
 
-// Same time base as MediaFrameReference.SystemRelativeTime (QPC)
+// Time base of the capture times of the frames
 public static class CaptureClock
 {
     private static readonly double TickFrequency = (double)TimeSpan.TicksPerSecond / Stopwatch.Frequency;

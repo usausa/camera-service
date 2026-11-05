@@ -5,22 +5,20 @@ using System.Net.WebSockets;
 
 using CameraService.Core;
 using CameraService.Host.Testing;
-using CameraService.Platform.Windows;
 
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 // A client must not wait for frames that do not come: it is closed with a status that makes the viewer use MJPEG
 public sealed class H264EncoderFailureTests
 {
     private const string H264Path = "/cameras/test/h264";
 
-    private const string CreateError = "No encoder.";
-
     [Fact]
     public Task ClientIsClosedWhenEncoderCannotBeCreated() =>
         ServiceTestServer.RunWithServicesAsync(
             null,
-            static services => services.AddSingleton<IH264EncoderFactory>(new TestEncoderFactory { Fails = true }),
+            static services => services.AddSingleton<IH264EncoderFactory>(new TestH264EncoderFactory { Fails = true }),
             static async (server, cancellationToken) =>
             {
                 // Arrange
@@ -34,7 +32,7 @@ public sealed class H264EncoderFailureTests
                 // Assert (still answered with 200, the live view works with MJPEG)
                 Assert.Equal(WebSocketMessageType.Close, type);
                 Assert.Equal(WebSocketCloseStatus.InternalServerError, socket.CloseStatus);
-                Assert.Equal(CreateError, server.Manager.Find(ServiceTestServer.CameraId)!.H264!.ErrorMessage);
+                Assert.Equal(TestH264EncoderFactory.CreateError, server.Manager.Find(ServiceTestServer.CameraId)!.H264!.ErrorMessage);
                 Assert.Equal(HttpStatusCode.OK, health.StatusCode);
                 Assert.Equal("Degraded", await health.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(true));
             });
@@ -43,7 +41,7 @@ public sealed class H264EncoderFailureTests
     [Fact]
     public Task NewClientTriesEncoderAgain()
     {
-        var factory = new TestEncoderFactory { Fails = true };
+        var factory = new TestH264EncoderFactory { Fails = true };
         return ServiceTestServer.RunWithServicesAsync(
             null,
             services => services.AddSingleton<IH264EncoderFactory>(factory),
@@ -73,7 +71,7 @@ public sealed class H264EncoderFailureTests
     public Task ClientIsClosedWhenEncoderFails() =>
         ServiceTestServer.RunWithServicesAsync(
             null,
-            static services => services.AddSingleton<IH264EncoderFactory>(new TestEncoderFactory { Faults = true }),
+            static services => services.AddSingleton<IH264EncoderFactory>(new TestH264EncoderFactory { Faults = true }),
             static async (server, cancellationToken) =>
             {
                 // Arrange
@@ -89,61 +87,34 @@ public sealed class H264EncoderFailureTests
                 Assert.Contains("H.264 encoder failed.", server.Manager.Find(ServiceTestServer.CameraId)!.H264!.ErrorMessage, StringComparison.Ordinal);
             });
 
+    // Each frame of the camera (30 per second) has the same layout, so the error is the same
+    [Fact]
+    public Task UnexpectedLayoutIsLoggedOnce()
+    {
+        var factory = new TestH264EncoderFactory { RejectsFrames = true };
+        return ServiceTestServer.RunWithServicesAsync(
+            null,
+            services => services.AddSingleton<IH264EncoderFactory>(factory),
+            async (server, cancellationToken) =>
+            {
+                // Arrange
+                using var socket = new ClientWebSocket();
+                await socket.ConnectAsync(server.GetWebSocketUri(H264Path), cancellationToken).ConfigureAwait(true);
+                await ServiceTestServer.WaitUntilAsync(() => factory.Encoder is not null, cancellationToken).ConfigureAwait(true);
+
+                // Act
+                var frames = server.Channel.CapturedFrames;
+                await ServiceTestServer.WaitUntilAsync(() => server.Channel.CapturedFrames >= frames + 5, cancellationToken).ConfigureAwait(true);
+
+                // Assert
+                Assert.Single(server.Logs.Entries, static x => (x.Level == LogLevel.Error) && x.Message.StartsWith("Encode failed.", StringComparison.Ordinal));
+            });
+    }
+
     private static async Task<WebSocketMessageType> ReceiveTypeAsync(ClientWebSocket socket, CancellationToken cancellationToken)
     {
         var buffer = new byte[1024 * 1024];
         var result = await socket.ReceiveAsync(buffer.AsMemory(), cancellationToken).ConfigureAwait(true);
         return result.MessageType;
-    }
-
-    private sealed class TestEncoderFactory : IH264EncoderFactory
-    {
-        private readonly H264EncoderFactory inner = new();
-
-        public bool Fails { get; set; }
-
-        public bool Faults { get; set; }
-
-        public IH264Encoder Create(H264EncoderOptions options, H264OutputCallback callback)
-        {
-            if (Fails)
-            {
-                throw new InvalidOperationException(CreateError);
-            }
-
-            return Faults ? new FaultedEncoder() : inner.Create(options, callback);
-        }
-    }
-
-    // Stops working with the first frame
-    private sealed class FaultedEncoder : IH264Encoder
-    {
-        public string Name => "Faulted";
-
-        public bool IsHardware => false;
-
-        public long DroppedFrames => 0;
-
-        public bool IsFaulted { get; private set; }
-
-        public int FaultCode => unchecked((int)0x80004005);
-
-        public void Dispose()
-        {
-        }
-
-        public void RequestKeyFrame()
-        {
-        }
-
-        public bool Encode(ReadOnlySpan<byte> y, int yStride, ReadOnlySpan<byte> uv, int uvStride, long timestamp) => Fault();
-
-        public bool EncodeYuy2(ReadOnlySpan<byte> yuy2, int stride, long timestamp) => Fault();
-
-        private bool Fault()
-        {
-            IsFaulted = true;
-            return false;
-        }
     }
 }

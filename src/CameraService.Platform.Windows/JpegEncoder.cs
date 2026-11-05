@@ -128,19 +128,19 @@ public sealed unsafe class JpegEncoder : IJpegEncoder
 
             // IWICImagingFactory.CreateEncoder, IWICBitmapEncoder.Initialize, IWICBitmapEncoder.CreateNewFrame
             var container = ContainerFormatJpeg;
-            result = ((delegate* unmanaged[Stdcall]<IntPtr, Guid*, Guid*, IntPtr*, int>)Wic.Vtbl(factory)[Wic.CreateEncoderSlot])(factory, &container, null, &encoder);
+            result = ((delegate* unmanaged[Stdcall]<IntPtr, Guid*, Guid*, IntPtr*, int>)Com.Vtbl(factory)[Wic.CreateEncoderSlot])(factory, &container, null, &encoder);
             if (result < 0)
             {
                 return result;
             }
 
-            result = ((delegate* unmanaged[Stdcall]<IntPtr, IntPtr, int, int>)Wic.Vtbl(encoder)[EncoderInitializeSlot])(encoder, stream, EncoderNoCache);
+            result = ((delegate* unmanaged[Stdcall]<IntPtr, IntPtr, int, int>)Com.Vtbl(encoder)[EncoderInitializeSlot])(encoder, stream, EncoderNoCache);
             if (result < 0)
             {
                 return result;
             }
 
-            result = ((delegate* unmanaged[Stdcall]<IntPtr, IntPtr*, IntPtr*, int>)Wic.Vtbl(encoder)[CreateNewFrameSlot])(encoder, &frame, &options);
+            result = ((delegate* unmanaged[Stdcall]<IntPtr, IntPtr*, IntPtr*, int>)Com.Vtbl(encoder)[CreateNewFrameSlot])(encoder, &frame, &options);
             if (result < 0)
             {
                 return result;
@@ -153,19 +153,19 @@ public sealed unsafe class JpegEncoder : IJpegEncoder
                 return result;
             }
 
-            result = ((delegate* unmanaged[Stdcall]<IntPtr, IntPtr, int>)Wic.Vtbl(frame)[FrameInitializeSlot])(frame, options);
+            result = ((delegate* unmanaged[Stdcall]<IntPtr, IntPtr, int>)Com.Vtbl(frame)[FrameInitializeSlot])(frame, options);
             if (result < 0)
             {
                 return result;
             }
 
-            result = ((delegate* unmanaged[Stdcall]<IntPtr, uint, uint, int>)Wic.Vtbl(frame)[SetSizeSlot])(frame, (uint)width, (uint)height);
+            result = ((delegate* unmanaged[Stdcall]<IntPtr, uint, uint, int>)Com.Vtbl(frame)[SetSizeSlot])(frame, (uint)width, (uint)height);
             if (result < 0)
             {
                 return result;
             }
 
-            result = ((delegate* unmanaged[Stdcall]<IntPtr, double, double, int>)Wic.Vtbl(frame)[SetResolutionSlot])(frame, Dpi, Dpi);
+            result = ((delegate* unmanaged[Stdcall]<IntPtr, double, double, int>)Com.Vtbl(frame)[SetResolutionSlot])(frame, Dpi, Dpi);
             if (result < 0)
             {
                 return result;
@@ -173,7 +173,7 @@ public sealed unsafe class JpegEncoder : IJpegEncoder
 
             // The interleaved format decides the accepted planar formats
             var pixelFormat = Wic.PixelFormat24BppBgr;
-            result = ((delegate* unmanaged[Stdcall]<IntPtr, Guid*, int>)Wic.Vtbl(frame)[SetPixelFormatSlot])(frame, &pixelFormat);
+            result = ((delegate* unmanaged[Stdcall]<IntPtr, Guid*, int>)Com.Vtbl(frame)[SetPixelFormatSlot])(frame, &pixelFormat);
             if (result < 0)
             {
                 return result;
@@ -186,20 +186,20 @@ public sealed unsafe class JpegEncoder : IJpegEncoder
                 return result;
             }
 
-            result = ((delegate* unmanaged[Stdcall]<IntPtr, uint, Wic.BitmapPlane*, uint, int>)Wic.Vtbl(planar)[WritePixelsSlot])(planar, (uint)height, planes, PlaneCount);
+            result = ((delegate* unmanaged[Stdcall]<IntPtr, uint, Wic.BitmapPlane*, uint, int>)Com.Vtbl(planar)[WritePixelsSlot])(planar, (uint)height, planes, PlaneCount);
             if (result < 0)
             {
                 return result;
             }
 
             // IWICBitmapFrameEncode.Commit, IWICBitmapEncoder.Commit
-            result = ((delegate* unmanaged[Stdcall]<IntPtr, int>)Wic.Vtbl(frame)[FrameCommitSlot])(frame);
+            result = ((delegate* unmanaged[Stdcall]<IntPtr, int>)Com.Vtbl(frame)[FrameCommitSlot])(frame);
             if (result < 0)
             {
                 return result;
             }
 
-            result = ((delegate* unmanaged[Stdcall]<IntPtr, int>)Wic.Vtbl(encoder)[EncoderCommitSlot])(encoder);
+            result = ((delegate* unmanaged[Stdcall]<IntPtr, int>)Com.Vtbl(encoder)[EncoderCommitSlot])(encoder);
             if (result < 0)
             {
                 return result;
@@ -207,7 +207,7 @@ public sealed unsafe class JpegEncoder : IJpegEncoder
 
             // IStream.Seek (current position = encoded length)
             ulong position;
-            result = ((delegate* unmanaged[Stdcall]<IntPtr, long, uint, ulong*, int>)Wic.Vtbl(stream)[Wic.SeekSlot])(stream, 0, Wic.StreamSeekCurrent, &position);
+            result = ((delegate* unmanaged[Stdcall]<IntPtr, long, uint, ulong*, int>)Com.Vtbl(stream)[Wic.SeekSlot])(stream, 0, Wic.StreamSeekCurrent, &position);
             if (result >= 0)
             {
                 length = (int)position;
@@ -217,11 +217,11 @@ public sealed unsafe class JpegEncoder : IJpegEncoder
         }
         finally
         {
-            Wic.Release(planar);
-            Wic.Release(options);
-            Wic.Release(frame);
-            Wic.Release(encoder);
-            Wic.Release(stream);
+            Com.Release(planar);
+            Com.Release(options);
+            Com.Release(frame);
+            Com.Release(encoder);
+            Com.Release(stream);
         }
     }
 
@@ -237,7 +237,7 @@ public sealed unsafe class JpegEncoder : IJpegEncoder
                 names[1] = new PropertyBagEntry { Name = subsamplingName };
                 values[0] = new Variant { Type = VariantSingle, Single = quality };
                 values[1] = new Variant { Type = VariantByte, Byte = Subsampling420 };
-                return ((delegate* unmanaged[Stdcall]<IntPtr, uint, PropertyBagEntry*, Variant*, int>)Wic.Vtbl(options)[WriteSlot])(options, 2, names, values);
+                return ((delegate* unmanaged[Stdcall]<IntPtr, uint, PropertyBagEntry*, Variant*, int>)Com.Vtbl(options)[WriteSlot])(options, 2, names, values);
             }
         }
     }

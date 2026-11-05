@@ -7,6 +7,7 @@ using System.Text;
 
 using CameraService.Core;
 using CameraService.Host.Services;
+using CameraService.Host.Settings;
 
 using Microsoft.AspNetCore.Http.Features;
 
@@ -22,16 +23,13 @@ public static class StreamEndpoints
 
     private const string MjpegContentType = "multipart/x-mixed-replace; boundary=" + Boundary;
 
-    // Parameter of the viewer, which reads the same stream with fetch: a browser may refuse a multipart response for anything other than an image
+    // Parameter of the viewer, which reads the same stream with fetch
     private const string RawParameter = "raw";
 
     private const string RawContentType = "application/octet-stream";
 
-    // A browser shows a part when the header of the next part arrives, so the boundary and the next part header follow each frame
+    // The boundary and the next part header follow each frame, so that a frame is shown without waiting for the next one
     private static readonly byte[] PartDelimiter = Encoding.ASCII.GetBytes($"\r\n--{Boundary}\r\nContent-Type: image/jpeg\r\n\r\n");
-
-    // Includes opening the camera and the warm-up
-    private static readonly TimeSpan SnapshotTimeout = TimeSpan.FromSeconds(10);
 
     private static readonly TimeSpan CloseTimeout = TimeSpan.FromSeconds(1);
 
@@ -142,7 +140,7 @@ public static class StreamEndpoints
     // Snapshot
     //--------------------------------------------------------------------------------
 
-    private static async Task HandleSnapshotAsync(HttpContext context, string id, CameraManager manager, IHostApplicationLifetime lifetime)
+    private static async Task HandleSnapshotAsync(HttpContext context, string id, CameraManager manager, CameraSetting setting, IHostApplicationLifetime lifetime)
     {
         var camera = manager.Find(id);
         if (camera is null)
@@ -154,7 +152,7 @@ public static class StreamEndpoints
         // The camera stays open for the idle time after the snapshot
         using var lease = camera.Channel.Acquire();
         using var stopping = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted, lifetime.ApplicationStopping);
-        stopping.CancelAfter(SnapshotTimeout);
+        stopping.CancelAfter(setting.FirstFrameTimeout);
         using var subscription = camera.Jpeg.Hub.Subscribe(stopping.Token);
 
         EncodedFrame frame;
@@ -334,9 +332,8 @@ public static class StreamEndpoints
         }
     }
 
-    // Sends a WebSocket message without the token: with a cancelable token, ManagedWebSocket takes its slower path for each send
-    // (an asynchronous wait and a registration, and the send buffer goes back to the pool on another thread, which allocates).
-    // A send in progress when the token is canceled is stopped by aborting the connection, as ManagedWebSocket does.
+    // Sends a WebSocket message without the token, which allocates less for each send.
+    // A send in progress when the token is canceled is stopped by aborting the connection.
     private sealed class FrameSender : IDisposable
     {
         private readonly WebSocket socket;

@@ -11,8 +11,6 @@ using Mofucat.JobScheduler;
 // Today's folders are never deleted, and only the folders named by a date (yyyyMMdd) are deleted.
 public sealed class ImageRetention : ISchedulerJob
 {
-    private const double GigaBytes = 1024d * 1024 * 1024;
-
     private readonly ILogger<ImageRetention> log;
 
     private readonly LocalTimeProvider timeProvider;
@@ -113,7 +111,7 @@ public sealed class ImageRetention : ISchedulerJob
     // Stops when the free space becomes unknown: nothing tells that more images have to be deleted.
     private int DeleteForSpace(string volume, IEnumerable<DateFolder> dates, DateOnly today, CancellationToken cancellationToken)
     {
-        var minimum = setting.MinFreeSpace * GigaBytes;
+        var minimum = setting.MinFreeSpace * SnapshotStorage.GigaBytes;
         var free = getFreeSpace(volume);
         if (free is null)
         {
@@ -133,7 +131,7 @@ public sealed class ImageRetention : ISchedulerJob
             if (Delete(date.Path))
             {
                 deleted++;
-                log.WarnImagesDeletedForSpace(date.Path, free.Value / GigaBytes);
+                log.WarnImagesDeletedForSpace(date.Path, free.Value / SnapshotStorage.GigaBytes);
             }
 
             free = getFreeSpace(volume);
@@ -146,7 +144,7 @@ public sealed class ImageRetention : ISchedulerJob
 
         if (free < minimum)
         {
-            log.WarnFreeSpaceLow(volume, free.Value / GigaBytes, setting.MinFreeSpace);
+            log.WarnFreeSpaceLow(volume, free.Value / SnapshotStorage.GigaBytes, setting.MinFreeSpace);
         }
 
         return deleted;

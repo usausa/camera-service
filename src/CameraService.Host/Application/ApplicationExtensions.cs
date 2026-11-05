@@ -31,28 +31,12 @@ public static class ApplicationExtensions
     // Logging
     //--------------------------------------------------------------------------------
 
-    // Until the settings are read (replaced by ConfigureLogging): settings that cannot be read are also written to the log file
-    public static void ConfigureStartupLogging()
-    {
-        const string template = "{Timestamp:HH:mm:ss.fff} {Level:u4} - {Message:lj}{NewLine}{Exception}";
-        Serilog.Log.Logger = new LoggerConfiguration()
-            .WriteTo.Console(outputTemplate: template, formatProvider: CultureInfo.InvariantCulture)
-            .WriteTo.File(@"..\Log\CameraService_.log", rollingInterval: RollingInterval.Day, outputTemplate: template, formatProvider: CultureInfo.InvariantCulture)
-            .CreateLogger();
-    }
-
     public static IHostApplicationBuilder ConfigureLogging(this IHostApplicationBuilder builder)
     {
         builder.Logging.ClearProviders();
         builder.Services.AddSerilog(options => options.ReadFrom.Configuration(builder.Configuration));
 
         return builder;
-    }
-
-    public static void LogServiceFailure(Exception ex)
-    {
-        Serilog.Log.Fatal(ex, "Service failed.");
-        Serilog.Log.CloseAndFlush();
     }
 
     //--------------------------------------------------------------------------------
@@ -171,8 +155,7 @@ public static class ApplicationExtensions
     // Stop
     //--------------------------------------------------------------------------------
 
-    // Requests after the stop started are refused: a page connects again at once when its connection is closed for the stop,
-    // and the server would wait for the new connection until the shutdown timeout (30 seconds)
+    // Requests after the stop started are refused, so that a page that connects again does not keep the stop waiting
     public static WebApplication UseStoppingGate(this WebApplication app)
     {
         var stopping = app.Lifetime.ApplicationStopping;
@@ -211,7 +194,7 @@ public static class ApplicationExtensions
         return app;
     }
 
-    // Separate from the end points, so that the tests run the end points without the pages and their static files
+    // Separate from the end points, so that the tests run without the static files
     public static WebApplication MapBlazor(this WebApplication app)
     {
         app.MapStaticAssets();

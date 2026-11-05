@@ -9,6 +9,21 @@ public sealed class CameraChannelTests
 {
     private const string StreamPath = "/cameras/test/stream.mjpg";
 
+    [Theory]
+    [InlineData(1, 5)]
+    [InlineData(2, 10)]
+    [InlineData(3, 30)]
+    [InlineData(4, 60)]
+    [InlineData(100, 60)]
+    public void RetryDelayGrowsWithFailures(int failures, int seconds)
+    {
+        // Act
+        var delay = CameraChannel.GetRetryDelay(failures);
+
+        // Assert
+        Assert.Equal(TimeSpan.FromSeconds(seconds), delay);
+    }
+
     [Fact]
     public Task CameraOpensOnDemandAndClosesAfterIdleTime() =>
         ServiceTestServer.RunAsync(null, static async (server, cancellationToken) =>

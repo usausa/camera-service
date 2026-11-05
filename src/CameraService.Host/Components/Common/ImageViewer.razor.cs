@@ -155,16 +155,21 @@ public sealed partial class ImageViewer : IAsyncDisposable
         index = Math.Clamp(value, 0, Times.Count - 1);
     }
 
+    // From the start when the last image is shown
     private void TogglePlay()
     {
         if (Playing)
         {
             StopPlayback();
+            return;
         }
-        else
+
+        if (index >= Times.Count - 1)
         {
-            StartPlayback();
+            index = 0;
         }
+
+        StartPlayback();
     }
 
     private void OnSpeedChanged(ChangeEventArgs e)
@@ -188,15 +193,9 @@ public sealed partial class ImageViewer : IAsyncDisposable
     // Time-lapse
     //--------------------------------------------------------------------------------
 
-    // From the start when the last image is shown
     private void StartPlayback()
     {
         StopPlayback();
-        if (index >= Times.Count - 1)
-        {
-            index = 0;
-        }
-
         playback = new CancellationTokenSource();
         _ = PlayAsync(fps, playback.Token);
     }

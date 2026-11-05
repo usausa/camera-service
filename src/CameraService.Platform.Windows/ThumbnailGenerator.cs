@@ -71,9 +71,9 @@ public sealed unsafe class ThumbnailGenerator : IThumbnailGenerator
             uint sourceWidth;
             uint sourceHeight;
             if ((Wic.CreateMemoryStream(factory, source, length, out stream) < 0) ||
-                (((delegate* unmanaged[Stdcall]<IntPtr, IntPtr, Guid*, int, IntPtr*, int>)Wic.Vtbl(factory)[Wic.CreateDecoderFromStreamSlot])(factory, stream, null, DecodeMetadataCacheOnDemand, &decoder) < 0) ||
-                (((delegate* unmanaged[Stdcall]<IntPtr, uint, IntPtr*, int>)Wic.Vtbl(decoder)[GetFrameSlot])(decoder, 0, &frame) < 0) ||
-                (((delegate* unmanaged[Stdcall]<IntPtr, uint*, uint*, int>)Wic.Vtbl(frame)[GetSizeSlot])(frame, &sourceWidth, &sourceHeight) < 0) ||
+                (((delegate* unmanaged[Stdcall]<IntPtr, IntPtr, Guid*, int, IntPtr*, int>)Com.Vtbl(factory)[Wic.CreateDecoderFromStreamSlot])(factory, stream, null, DecodeMetadataCacheOnDemand, &decoder) < 0) ||
+                (((delegate* unmanaged[Stdcall]<IntPtr, uint, IntPtr*, int>)Com.Vtbl(decoder)[GetFrameSlot])(decoder, 0, &frame) < 0) ||
+                (((delegate* unmanaged[Stdcall]<IntPtr, uint*, uint*, int>)Com.Vtbl(frame)[GetSizeSlot])(frame, &sourceWidth, &sourceHeight) < 0) ||
                 (Marshal.QueryInterface(frame, in IidPlanarSourceTransform, out transform) < 0))
             {
                 return null;
@@ -87,7 +87,7 @@ public sealed unsafe class ThumbnailGenerator : IThumbnailGenerator
             formats[1] = Wic.PixelFormat16BppCbCr;
             var descriptions = stackalloc PlaneDescription[PlaneCount];
             int supported;
-            if ((((delegate* unmanaged[Stdcall]<IntPtr, uint*, uint*, int, int, Guid*, PlaneDescription*, uint, int*, int>)Wic.Vtbl(transform)[DoesSupportTransformSlot])(transform, &scaledWidth, &scaledHeight, TransformRotate0, PlanarOptionsDefault, formats, descriptions, PlaneCount, &supported) < 0) ||
+            if ((((delegate* unmanaged[Stdcall]<IntPtr, uint*, uint*, int, int, Guid*, PlaneDescription*, uint, int*, int>)Com.Vtbl(transform)[DoesSupportTransformSlot])(transform, &scaledWidth, &scaledHeight, TransformRotate0, PlanarOptionsDefault, formats, descriptions, PlaneCount, &supported) < 0) ||
                 (supported == 0))
             {
                 return null;
@@ -117,7 +117,7 @@ public sealed unsafe class ThumbnailGenerator : IThumbnailGenerator
                         var planes = stackalloc Wic.BitmapPlane[PlaneCount];
                         planes[0] = new Wic.BitmapPlane { Format = Wic.PixelFormat8BppY, Buffer = y, Stride = (uint)image.Stride, BufferSize = (uint)image.Y.Length };
                         planes[1] = new Wic.BitmapPlane { Format = Wic.PixelFormat16BppCbCr, Buffer = uv, Stride = (uint)chromaStride, BufferSize = (uint)(chromaStride * chromaHeight) };
-                        result = ((delegate* unmanaged[Stdcall]<IntPtr, void*, uint, uint, int, int, Wic.BitmapPlane*, uint, int>)Wic.Vtbl(transform)[PlanarCopyPixelsSlot])(transform, null, scaledWidth, scaledHeight, TransformRotate0, PlanarOptionsDefault, planes, PlaneCount);
+                        result = ((delegate* unmanaged[Stdcall]<IntPtr, void*, uint, uint, int, int, Wic.BitmapPlane*, uint, int>)Com.Vtbl(transform)[PlanarCopyPixelsSlot])(transform, null, scaledWidth, scaledHeight, TransformRotate0, PlanarOptionsDefault, planes, PlaneCount);
                     }
                 }
 
@@ -137,11 +137,11 @@ public sealed unsafe class ThumbnailGenerator : IThumbnailGenerator
         }
         finally
         {
-            Wic.Release(transform);
-            Wic.Release(frame);
-            Wic.Release(decoder);
-            Wic.Release(stream);
-            Wic.Release(factory);
+            Com.Release(transform);
+            Com.Release(frame);
+            Com.Release(decoder);
+            Com.Release(stream);
+            Com.Release(factory);
         }
     }
 

@@ -15,8 +15,7 @@ public static class VideoDeviceCatalog
         var devices = new List<VideoDevice>();
         foreach (var group in groups)
         {
-            // Color only (exclude infrared and sensor groups)
-            if ((group.SourceInfos.Count != 1) || (group.SourceInfos[0].SourceKind != MediaFrameSourceKind.Color))
+            if (!IsColorCamera([.. group.SourceInfos.Select(static x => x.SourceKind)]))
             {
                 continue;
             }
@@ -30,6 +29,11 @@ public static class VideoDeviceCatalog
 
         return devices;
     }
+
+    // Excludes the infrared cameras and the sensor groups (a group of the color and the infrared camera of a device).
+    // A camera can have more than one color source (preview and record), the capture uses the first.
+    internal static bool IsColorCamera(IReadOnlyCollection<MediaFrameSourceKind> kinds) =>
+        (kinds.Count > 0) && kinds.All(static x => x == MediaFrameSourceKind.Color);
 
     private static async Task<IReadOnlyList<VideoFormat>> GetFormatsAsync(MediaFrameSourceGroup group)
     {

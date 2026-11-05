@@ -23,7 +23,7 @@
 ## 💻 動作環境
 
 - Windows 11、ASP.NET Core 10 ランタイム(ビルドは .NET 10 SDK)
-- MediaFrameReader 対応の USB カメラ(YUY2 または NV12)
+- USB カメラ(YUY2 または NV12)
 - ⚠️ カメラの使用を許可(設定 > プライバシーとセキュリティ > カメラ)
 
 ## ▶️ 試す
@@ -56,7 +56,6 @@ dotnet run --project src/CameraService.Host
 - `-FirewallPort 5180` で他の PC 向けにポートを開放
 - ⚠️ 発行先のフォルダーを使う(ビルドの出力には `wwwroot` がない)
 - **ログ:** 発行先の 1 つ上の `Log\CameraService_yyyyMMdd.log`。`Serilog:MinimumLevel:Default` を `Debug` にすると保存ごとに 1 行
-- ⚠️ 起動しないときはログを確認(設定の誤りと JSON のエラーを記録)
 
 ## ⚙️ 設定
 
@@ -81,13 +80,12 @@ dotnet run --project src/CameraService.Host
 | キー | 内容 | 既定値 |
 |:--|:--|:--|
 | `Stream:Fps` | MJPEG と静止画の最大 fps | `10` |
-| `Stream:Quality` | JPEG の品質(1〜100) | `80` |
+| `Stream:Quality` | JPEG の品質(1～100) | `80` |
 | `Stream:H264:Enable` | H.264 のライブ | `true` |
 | `Stream:H264:Bitrate` | kbps。0 は解像度で決定(640x480 まで 4000、1280x720 まで 8000、それ以上 16000) | `0` |
 | `Stream:H264:KeyFrameInterval` | キーフレームの間隔(秒) | `2` |
 | `Stream:H264:PreferHardware` | ハードウェアエンコーダーを優先 | `true` |
 
-- 640x480 で MJPEG は約 5 Mbps(10 fps)、H.264 は約 4 Mbps(全フレーム)
 - ⚠️ H.264 は localhost か HTTPS のみ。他の PC から http なら MJPEG
 
 ### 💾 保存先と自動削除
@@ -107,18 +105,18 @@ dotnet run --project src/CameraService.Host
 | `Name` | 表示名 | `Id` |
 | `Device` | デバイス名。`Device` と `DeviceId` がなければ形式が合う最初のデバイス | 空 |
 | `DeviceId` | `/api/devices` の `id`(同名のデバイスの区別) | 空 |
-| `Format` | `Yuy2` / `Nv12` | `Yuy2` |
+| `Format` | `Yuy2` / `Nv12`(カメラの形式は `/api/devices` で確認) | `Yuy2` |
 | `Width` / `Height` / `Fps` | カメラが持つ形式 | `640` / `480` / `30` |
 | `Snapshot:Enable` | 定期保存 | `false` |
 | `Snapshot:Schedule` | Cron | `* * * * *` |
 | `Snapshot:Path` | カメラのフォルダー(`Storage:Path` からの相対) | `Id` |
-| `Snapshot:Quality` | JPEG の品質(1〜100) | `90` |
+| `Snapshot:Quality` | JPEG の品質(1～100) | `90` |
 | `Snapshot:Timestamp:Enable` | 時刻の焼き込み | `true` |
 | `Snapshot:Timestamp:Format` | 時刻の書式(結果は数字、空白、`+` `-` `.` `/` `:` のみ) | `yyyy/MM/dd HH:mm:ss` |
 | `Snapshot:Timestamp:Position` | `TopLeft` / `TopRight` / `BottomLeft` / `BottomRight` | `BottomRight` |
 | `Snapshot:Timestamp:Scale` | 文字の大きさ(1 = 7 ドット)。0 は画像の高さで決定(480: 2、720: 3、1080: 4) | `0` |
 
-- ⚠️ 形式が合う仮想カメラ(スマートフォンなど)が選ばれる場合あり。`Device` を指定
+- ⚠️ 形式が合うデバイスが複数あれば `Device` を指定
 - `Format ... not supported` にはデバイスの形式を表示
 - 💡 同じ USB に複数台なら NV12(YUY2 は帯域が大きい)
 
@@ -139,25 +137,24 @@ dotnet run --project src/CameraService.Host
 ```
 
 - 証明書はコンピューターのストアに置き、見る端末で信頼させる
-- 他の PC でも H.264 が使え、HTTP/2 になる(HTTP/1.1 はホストごとに 6 接続まで)
+- 他の PC でも H.264 が使え、HTTP/2 になる
 
 ## 🕒 時刻の指定(Cron)
 
 5 項目(分 時 日 月 曜日)、または秒を先頭に足した 6 項目。現地時刻。
 
-- 書き方: `*`、`5`、`1,15`、`9-17`、`*/10`、`0-30/5`。数字のみ。曜日は 0〜7(0 と 7 が日曜)
+- 書き方: `*`、`5`、`1,15`、`9-17`、`*/10`、`0-30/5`。数字のみ。曜日は 0～7(0 と 7 が日曜)
 
 | 例 | 意味 |
 |:--|:--|
 | `* * * * *` | 毎分 |
 | `*/10 * * * * *` | 10 秒ごと |
-| `* 22-23,0-5 * * *` | 夜間に毎分(22:00〜5:59) |
-| `*/5 9-17 * * 1-5` | 平日 9:00〜17:59 に 5 分ごと |
+| `* 22-23,0-5 * * *` | 夜間に毎分(22:00～5:59) |
+| `*/5 9-17 * * 1-5` | 平日 9:00～17:59 に 5 分ごと |
 | `0 3 * * *` | 毎日 3:00 |
 
 - 取りこぼしは後から実行しない
 - 前の保存がカメラを待っている間の回は実行しない
-- ⚠️ 夏時間の切り替え直後の 1 回はずれる場合あり
 
 ## 💾 保存画像
 
@@ -171,8 +168,7 @@ dotnet run --project src/CameraService.Host
 | `Images` | `E:\Front` | `E:\Front` |
 
 - 2 台で同じフォルダーは不可(解決後のパスで確認)
-- 640x480、品質 90 で 1 枚最大約 100 KB。毎分の保存で 1 日約 140 MB
-- カメラは予定の約 3 秒前に開き、`IdleTime` で閉じる
+- カメラは予定の `WarmupTime` + 2 秒前に開き、`IdleTime` で閉じる
 - 保存の失敗は次に成功するまで警告 1 回
 
 ### 🧹 自動削除
@@ -198,7 +194,7 @@ dotnet run --project src/CameraService.Host
 
 - **ライブ:** 右上に H.264 か MJPEG を表示
 - **赤い `Reconnecting`:** 接続断。最後のコマを残して自動で再接続
-- **静止画:** 更新ボタン、または 5 / 10 / 30 / 60 秒ごと。カメラが閉じていれば約 2 秒
+- **静止画:** 更新ボタン、または 5 / 10 / 30 / 60 秒ごと
 
 ### 🗂️ 保存画像
 
@@ -242,7 +238,7 @@ dotnet run --project src/CameraService.Host
 ## ⚠️ 注意
 
 - **カメラの同時利用は不可:** サービスと他のアプリで同時に使えない。他のアプリの使用中は保存が失敗
-- **暗い部屋:** 露出が延びて約 10 fps まで下がり、保存も少し遅れる場合あり
+- **暗い部屋:** 露出が延びてフレームレートが下がり、保存も少し遅れる場合あり
 
 ## 📚 技術資料
 

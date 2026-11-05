@@ -8,10 +8,7 @@ public interface IVideoCapture : IAsyncDisposable, IDisposable
 
     event EventHandler<VideoCaptureFailedEventArgs>? Failed;
 
-    VideoPixelFormat OutputPixelFormat { get; }
-
-    // outputPixelFormat: Unknown = native format
-    Task OpenAsync(VideoFormat format, VideoPixelFormat outputPixelFormat = VideoPixelFormat.Unknown);
+    Task OpenAsync(VideoFormat format);
 
     Task StartAsync();
 }

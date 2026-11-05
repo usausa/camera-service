@@ -36,7 +36,7 @@ public sealed class CameraDeviceSettingValidatorTests
     [Fact]
     public void DuplicateIdFails()
     {
-        // Act (the folder names do not distinguish upper and lower case)
+        // Act (upper and lower case are not distinguished)
         var result = validator.Validate(null, [Camera("front"), Camera("FRONT")]);
 
         // Assert

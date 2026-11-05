@@ -35,33 +35,23 @@ internal static unsafe partial class Wic
     public static int CreateMemoryStream(IntPtr factory, byte* buffer, int length, out IntPtr stream)
     {
         IntPtr created;
-        var result = ((delegate* unmanaged[Stdcall]<IntPtr, IntPtr*, int>)Vtbl(factory)[CreateStreamSlot])(factory, &created);
+        var result = ((delegate* unmanaged[Stdcall]<IntPtr, IntPtr*, int>)Com.Vtbl(factory)[CreateStreamSlot])(factory, &created);
         if (result < 0)
         {
             stream = IntPtr.Zero;
             return result;
         }
 
-        result = ((delegate* unmanaged[Stdcall]<IntPtr, byte*, uint, int>)Vtbl(created)[InitializeFromMemorySlot])(created, buffer, (uint)length);
+        result = ((delegate* unmanaged[Stdcall]<IntPtr, byte*, uint, int>)Com.Vtbl(created)[InitializeFromMemorySlot])(created, buffer, (uint)length);
         if (result < 0)
         {
-            Release(created);
+            Com.Release(created);
             stream = IntPtr.Zero;
             return result;
         }
 
         stream = created;
         return result;
-    }
-
-    public static void** Vtbl(IntPtr pointer) => *(void***)pointer;
-
-    public static void Release(IntPtr pointer)
-    {
-        if (pointer != IntPtr.Zero)
-        {
-            Marshal.Release(pointer);
-        }
     }
 
     [LibraryImport("ole32.dll")]

@@ -4,7 +4,7 @@ using CameraService.Host.Testing;
 
 public sealed class CameraChannelDeviceTests
 {
-    // The first device of a PC can be a virtual camera without the format
+    // A device without the format is passed over
     [Fact]
     public Task CameraWithoutSettingUsesFirstDeviceWithFormat() =>
         ServiceTestServer.RunAsync(

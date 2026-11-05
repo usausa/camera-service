@@ -7,6 +7,9 @@ public static class SnapshotStorage
 {
     public const string Extension = ".jpg";
 
+    // Bytes of the free space values in the settings and the logs
+    public const double GigaBytes = 1024d * 1024 * 1024;
+
     private const string DateFormat = "yyyyMMdd";
 
     private const string TimeFormat = "HHmmss";

@@ -10,8 +10,6 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 // degraded while the free space of its drive is below Retention:MinFreeSpace
 public sealed class StorageHealthCheck : IHealthCheck
 {
-    private const double GigaBytes = 1024d * 1024 * 1024;
-
     private readonly CameraManager manager;
 
     private readonly RetentionSetting setting;
@@ -36,9 +34,9 @@ public sealed class StorageHealthCheck : IHealthCheck
             var low = new List<string>();
             foreach (var volume in writers.Select(static x => SnapshotStorage.GetVolume(x.Folder)).Distinct(StringComparer.OrdinalIgnoreCase))
             {
-                if (SnapshotStorage.GetFreeSpace(volume) is { } free && (free < setting.MinFreeSpace * GigaBytes))
+                if (SnapshotStorage.GetFreeSpace(volume) is { } free && (free < setting.MinFreeSpace * SnapshotStorage.GigaBytes))
                 {
-                    low.Add(String.Create(CultureInfo.InvariantCulture, $"{volume}: {free / GigaBytes:F1}GB free."));
+                    low.Add(String.Create(CultureInfo.InvariantCulture, $"{volume}: {free / SnapshotStorage.GigaBytes:F1}GB free."));
                 }
             }
 

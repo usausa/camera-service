@@ -1,5 +1,7 @@
 namespace CameraService.Host.Endpoints;
 
+using System.Net;
+
 using CameraService.Host.Testing;
 
 using Microsoft.Extensions.Options;
@@ -18,7 +20,21 @@ public sealed class StartupTests
             Assert.Equal(0, server.Camera.CreatedCount);
         });
 
-    // The Ids are used in the folder names, which do not distinguish upper and lower case
+    // Only the disposal of the test server stops the server, so it still answers after the stop has started.
+    [Fact]
+    public Task RequestAfterStopStartedIsRefused() =>
+        ServiceTestServer.RunAsync(null, static async (server, cancellationToken) =>
+        {
+            // Act
+            server.Lifetime.StopApplication();
+            using var response = await server.Client.GetAsync(server.GetUri("/health"), cancellationToken).ConfigureAwait(true);
+
+            // Assert
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+            Assert.True(response.Headers.ConnectionClose);
+        });
+
+    // The Ids are compared without upper and lower case
     [Fact]
     public Task DuplicateCameraIdStopsStart() =>
         Assert.ThrowsAsync<OptionsValidationException>(static () =>
