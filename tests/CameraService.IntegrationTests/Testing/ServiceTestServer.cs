@@ -13,9 +13,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-// The service on a free port of the loopback address, with the test cameras instead of the cameras of the PC.
-// The settings are only the values given here (the appsettings of the application are not read), and the pages are not mapped.
-// The images are saved in a folder of the test, which is deleted at the end.
 internal sealed class ServiceTestServer : IAsyncDisposable
 {
     public const string CameraId = "test";

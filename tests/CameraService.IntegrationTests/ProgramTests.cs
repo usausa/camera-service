@@ -2,13 +2,10 @@ namespace CameraService.Host;
 
 using System.Diagnostics;
 
-// The start of the real application (the test server does not go through Program.cs).
-// The settings stop it before a camera is used.
 public sealed class ProgramTests
 {
     private static readonly TimeSpan ExitTimeout = TimeSpan.FromSeconds(20);
 
-    // A service has no console, so the reason must be in the log file
     [Theory]
     [InlineData("--Camera:IdleTime=99999", "IdleTime")]
     [InlineData("--Camera:IdleTime=abc", "IdleTime")]

@@ -4,7 +4,6 @@ using System.Collections.Concurrent;
 
 using Microsoft.Extensions.Logging;
 
-// Keeps the log entries of the server (Information and above) for the assertions
 internal sealed class TestLoggerProvider : ILoggerProvider
 {
     private readonly ConcurrentQueue<TestLogEntry> entries = new();

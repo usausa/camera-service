@@ -1,6 +1,6 @@
 namespace CameraService.Core;
 
-// Cameras of the platform (replaced by a test camera in the tests)
+// Cameras of the platform
 public interface ICameraProvider
 {
     Task<IReadOnlyList<VideoDevice>> GetDevicesAsync();
