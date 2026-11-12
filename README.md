@@ -2,7 +2,7 @@
 
 🌐 English | [日本語](README.ja.md)
 
-A Windows service that streams cameras to the browser and saves still images on a schedule. Cameras and encoders stay closed while unused.
+A service for Windows and Linux (systemd) that streams cameras to the browser and saves still images on a schedule. Cameras and encoders stay closed while unused.
 
 <img src="docs/image.png" title="Image" width="50%">
 
@@ -22,15 +22,20 @@ A Windows service that streams cameras to the browser and saves still images on 
 
 ## 💻 Requirements
 
-- Windows 11, ASP.NET Core 10 runtime (.NET 10 SDK to build)
-- USB camera (YUY2 or NV12)
-- ⚠️ Camera access allowed (Settings > Privacy & security > Camera)
+- Windows: Windows 11, ASP.NET Core 10 runtime, USB camera (YUY2 or NV12)
+  - ⚠️ Camera access allowed (Settings > Privacy & security > Camera)
+- Linux: systemd, ASP.NET Core 10 runtime (or a self-contained publish), USB camera (YUY2, NV12 or MJPEG)
+  - Package `libturbojpeg` (Ubuntu) or `libturbojpeg0` (Debian, Raspberry Pi OS)
+  - No H.264: the live view uses MJPEG
+- .NET 10 SDK to build
 
 ## ▶️ Try it
 
 ```
-dotnet run --project src/CameraService.Host
+dotnet run --project src/CameraService.Host -f net10.0-windows10.0.26100.0
 ```
+
+- Linux: `-f net10.0`
 
 - `http://localhost:5180`: camera list
 - `/api/devices`: cameras and formats (for `Device` / `DeviceId`)
@@ -38,9 +43,11 @@ dotnet run --project src/CameraService.Host
 
 ## 📦 Install as a service
 
+### 🪟 Windows
+
 1. Publish
    ```
-   dotnet publish src/CameraService.Host -c Release -o C:\Services\CameraService
+   dotnet publish src/CameraService.Host -c Release -f net10.0-windows10.0.26100.0 -o C:\Services\CameraService
    ```
 2. Edit `Cameras` in the published `appsettings.json`
 3. Register and start (administrator PowerShell)
@@ -55,7 +62,29 @@ dotnet run --project src/CameraService.Host
 - Runs as LocalSystem, starts automatically (`-StartupType Manual` to disable), restarts 1 minute after a failure
 - `-FirewallPort 5180` opens the port for other PCs
 - ⚠️ Use the published folder: the build output has no `wwwroot`
-- **Log:** `Log\CameraService_yyyyMMdd.log` one level above the published folder. `Serilog:MinimumLevel:Default` = `Debug` adds a line per save
+- **Log:** `log\CameraService_yyyyMMdd.log` one level above the published folder. `Serilog:MinimumLevel:Default` = `Debug` adds a line per save
+
+### 🐧 Linux (systemd)
+
+1. Publish (`linux-arm64` for a Raspberry Pi, `--self-contained true` without the runtime)
+   ```
+   dotnet publish src/CameraService.Host -c Release -f net10.0 -r linux-x64 --self-contained false -o publish
+   ```
+2. Edit `Cameras` in the published `appsettings.json`
+3. Place in `/opt/camera-service`, register and start
+   ```
+   sudo bash tools/install-service.sh publish
+   ```
+4. Remove
+   ```
+   sudo bash tools/uninstall-service.sh
+   ```
+
+- Runs as the user `camera-service` (group `video` for the cameras), starts with the system, restarts 1 minute after a failure
+- Settings: `/opt/camera-service/appsettings.json`, applied by `sudo systemctl restart camera-service`. A reinstall keeps them, the removal deletes them with the program
+- Images: a relative `Storage:Path` starts from `/var/lib/camera-service`. The removal keeps the images and the logs
+- **Log:** `/var/log/camera-service/CameraService_yyyyMMdd.log`, and `journalctl -u camera-service`
+- 💡 Published on another PC: copy the published folder and `tools` to the Linux PC
 
 ## ⚙️ Settings
 
@@ -105,7 +134,7 @@ In `appsettings.json` or on the command line (`--Cameras:0:Device="ELECOM 2MP We
 | `Name` | Display name | `Id` |
 | `Device` | Device name. Without `Device` and `DeviceId`: first device with the format | Empty |
 | `DeviceId` | `id` in `/api/devices`, for devices with the same name | Empty |
-| `Format` | `Yuy2` / `Nv12` (formats of a camera: `/api/devices`) | `Yuy2` |
+| `Format` | `Yuy2` / `Nv12`, also `Mjpeg` on Linux (formats of a camera: `/api/devices`) | `Yuy2` |
 | `Width` / `Height` / `Fps` | A format of the camera | `640` / `480` / `30` |
 | `Snapshot:Enable` | Scheduled saving | `false` |
 | `Snapshot:Schedule` | Cron | `* * * * *` |
@@ -118,6 +147,7 @@ In `appsettings.json` or on the command line (`--Cameras:0:Device="ELECOM 2MP We
 
 - ⚠️ Set `Device` when several devices have the format
 - `Format ... not supported` lists the formats of the devices
+- `Mjpeg`: the JPEG of the camera is sent as it is (`Stream:Quality` is not used), no H.264
 - 💡 Use NV12 for several cameras on one USB controller: YUY2 needs much bandwidth
 
 ### 🔒 HTTPS
@@ -137,6 +167,7 @@ Set `Kestrel:Endpoints`. It replaces `http_ports`, so list HTTP too.
 ```
 
 - Certificate in the computer's store, trusted by the viewing devices
+- Linux: `"Certificate": { "Path": "cert.pem", "KeyPath": "key.pem" }`, files readable by the user `camera-service`
 - Gives other PCs H.264, and HTTP/2
 
 ## 🕒 Schedules (cron)
@@ -167,6 +198,7 @@ Set `Kestrel:Endpoints`. It replaces `http_ports`, so list HTTP too.
 | `Images` | `outdoor\front` | `{service}\Images\outdoor\front` |
 | `Images` | `E:\Front` | `E:\Front` |
 
+- Linux service: `{service}` is `/var/lib/camera-service`, and `/` separates the folders
 - Two cameras cannot share a folder (checked on the resolved paths)
 - The camera opens `WarmupTime` + 2 seconds before the time and closes after `IdleTime`
 - A failed save logs one warning until the next success

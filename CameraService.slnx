@@ -4,6 +4,7 @@
     <Project Path="src/CameraService.Host/CameraService.Host.csproj" />
   </Folder>
   <Folder Name="/Platform/">
+    <Project Path="src/CameraService.Platform.Linux/CameraService.Platform.Linux.csproj" />
     <Project Path="src/CameraService.Platform.Windows/CameraService.Platform.Windows.csproj" />
   </Folder>
   <Folder Name="/Test/">

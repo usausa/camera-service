@@ -8,7 +8,8 @@ using CameraService.Host.Settings;
 
 // Encodes the frames of a camera to JPEG while clients wait (MJPEG and snapshots), at most Stream:Fps frames per second.
 // Encoded on the capture thread into one work buffer and copied into a frame of the encoded size,
-// so that a frame does not keep a buffer of the largest size. Everything is released when the camera closes.
+// so that a frame does not keep a buffer of the largest size. The frames of an MJPEG camera are copied as they are.
+// Everything is released when the camera closes.
 public sealed class JpegPublisher : IDisposable
 {
     // The waiting clients keep the camera open, so a close does not clear a failure
@@ -92,31 +93,20 @@ public sealed class JpegPublisher : IDisposable
             return;
         }
 
+        var jpeg = pool.Rent();
         try
         {
-            planes ??= new Nv12Planes();
-            if (!planes.TryGet(in frame, out var y, out var yStride, out var uv, out var uvStride))
+            // 0 for a frame that is not sent (not supported, or not a JPEG)
+            var written = frame.PixelFormat == VideoPixelFormat.Mjpeg ? Copy(in frame, jpeg) : Encode(in frame, jpeg);
+            if (written == 0)
             {
-                return;
-            }
-
-            encoder ??= encoderFactory.Create(quality);
-            var maxLength = encoder.GetMaxLength(frame.Width, frame.Height);
-            if (work.Length < maxLength)
-            {
-                work = GC.AllocateUninitializedArray<byte>(maxLength);
-            }
-
-            if (!encoder.TryEncodeNv12(y, yStride, uv, uvStride, frame.Width, frame.Height, work, out var written))
-            {
+                jpeg.Release();
                 return;
             }
 
             encoded = true;
             failedTimestamp = 0;
             lastCaptureTime = frame.CaptureTime;
-            var jpeg = pool.Rent();
-            work.AsSpan(0, written).CopyTo(jpeg.GetBuffer(written));
             jpeg.Commit(++index, written);
             Interlocked.Increment(ref encodedFrames);
             Interlocked.Add(ref encodedBytes, written);
@@ -125,11 +115,43 @@ public sealed class JpegPublisher : IDisposable
         catch (Exception ex) when (ex is ArgumentException or COMException or InvalidOperationException)
         {
             // Unexpected buffer layout or encoder error, tried again with a new encoder after the interval
+            jpeg.Release();
             encoder?.Dispose();
             encoder = null;
             failedTimestamp = Stopwatch.GetTimestamp();
             log.ErrorEncodeFailed(ex, channel.Id);
         }
+    }
+
+    // The JPEG of the frame of an MJPEG camera (with the standard Huffman tables when it has none)
+    private static int Copy(in FrameBuffer frame, EncodedFrame jpeg)
+    {
+        var data = frame.Span;
+        return MjpegFrame.CopyAsJpeg(data, jpeg.GetBuffer(data.Length + MjpegFrame.MaxAddedLength));
+    }
+
+    private int Encode(in FrameBuffer frame, EncodedFrame jpeg)
+    {
+        planes ??= new Nv12Planes();
+        if (!planes.TryGet(in frame, out var y, out var yStride, out var uv, out var uvStride))
+        {
+            return 0;
+        }
+
+        encoder ??= encoderFactory.Create(quality);
+        var maxLength = encoder.GetMaxLength(frame.Width, frame.Height);
+        if (work.Length < maxLength)
+        {
+            work = GC.AllocateUninitializedArray<byte>(maxLength);
+        }
+
+        if (!encoder.TryEncodeNv12(y, yStride, uv, uvStride, frame.Width, frame.Height, work, out var written))
+        {
+            return 0;
+        }
+
+        work.AsSpan(0, written).CopyTo(jpeg.GetBuffer(written));
+        return written;
     }
 
     // After the capture is released (no frame handler runs)

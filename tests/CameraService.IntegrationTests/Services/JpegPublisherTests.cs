@@ -1,5 +1,6 @@
 namespace CameraService.Host.Services;
 
+using CameraService.Core;
 using CameraService.Host.Settings;
 using CameraService.Host.Testing;
 
@@ -61,6 +62,31 @@ public sealed class JpegPublisherTests : IAsyncDisposable
         Assert.Equal(0, publisher.EncodedFrames);
     }
 
-    private JpegPublisher CreatePublisher(TimeSpan retryInterval) =>
-        new(logs.CreateLogger(nameof(JpegPublisher)), channel, factory, new StreamSetting { Fps = TestCameraProvider.FrameRate }, retryInterval);
+    // The JPEG of the camera is sent as it is
+    [Fact(Timeout = TestTimeout)]
+    public async Task MjpegIsNotEncoded()
+    {
+        // Arrange
+        var mjpegChannel = TestChannel.Create(new TestCameraProvider(), VideoPixelFormat.Mjpeg);
+        await using (mjpegChannel.ConfigureAwait(true))
+        {
+            using var publisher = CreatePublisher(mjpegChannel, TimeSpan.FromMinutes(1));
+            using var lease = mjpegChannel.Acquire();
+            using var client = publisher.Hub.Subscribe(TestContext.Current.CancellationToken);
+
+            // Act
+            var frame = await client.WaitAsync().ConfigureAwait(true);
+            var data = frame.Data.ToArray();
+            frame.Release();
+
+            // Assert
+            Assert.Equal(TestCapture.JpegFrame, data);
+            Assert.Empty(factory.Encoders);
+        }
+    }
+
+    private JpegPublisher CreatePublisher(TimeSpan retryInterval) => CreatePublisher(channel, retryInterval);
+
+    private JpegPublisher CreatePublisher(CameraChannel camera, TimeSpan retryInterval) =>
+        new(logs.CreateLogger(nameof(JpegPublisher)), camera, factory, new StreamSetting { Fps = TestCameraProvider.FrameRate }, retryInterval);
 }

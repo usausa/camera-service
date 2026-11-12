@@ -3,6 +3,7 @@ namespace CameraService.Host.Services;
 using System.Globalization;
 
 using CameraService.Host.Testing;
+using CameraService.Platform.Windows;
 
 using Microsoft.Extensions.Logging;
 
@@ -41,6 +42,25 @@ public sealed class SnapshotWriterTests
             }
 
             Assert.Null(server.Snapshot.ErrorMessage);
+        });
+
+    // The JPEG of an MJPEG camera is decoded, the time is burned in, and the image is encoded again
+    [Fact]
+    public Task MjpegIsSavedWithTimestamp() =>
+        ServiceTestServer.RunAsync(Saving(new() { ["Cameras:0:Format"] = "Mjpeg" }), static async (server, cancellationToken) =>
+        {
+            // Act
+            await ServiceTestServer.WaitUntilAsync(() => server.Snapshot.SavedCount >= 1, cancellationToken).ConfigureAwait(true);
+            var jpeg = await File.ReadAllBytesAsync(server.Snapshot.LastSaved!.Path, cancellationToken).ConfigureAwait(true);
+
+            // Assert (the gray frame of the camera with the white text of the time)
+            Assert.Null(server.Snapshot.ErrorMessage);
+            Assert.NotEqual(TestCapture.JpegFrame, jpeg);
+            using var decoder = new JpegDecoderFactory().Create();
+            using var image = decoder.Decode(jpeg);
+            Assert.NotNull(image);
+            Assert.Equal((TestCameraProvider.Width, TestCameraProvider.Height), (image.Width, image.Height));
+            Assert.Contains(image.Y.ToArray(), static x => x > 200);
         });
 
     [Fact]

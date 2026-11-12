@@ -1,6 +1,5 @@
 namespace CameraService.Host.Services;
 
-using System.Buffers;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 
@@ -11,7 +10,7 @@ using Mofucat.JobScheduler;
 
 // Saves a frame of a camera on its schedule as {folder}\yyyyMMdd\HHmmss.jpg of the scheduled time, with the time of the frame burned in.
 // The camera is opened a little before the time (Prepare). The first frame captured at the scheduled time or later is copied on the capture thread,
-// then drawn on and encoded on the thread of the job.
+// then drawn on and encoded on the thread of the job (the JPEG of an MJPEG camera is decoded there first).
 public sealed class SnapshotWriter : ISchedulerJob, IDisposable
 {
     private const string TemporaryExtension = ".tmp";
@@ -26,6 +25,8 @@ public sealed class SnapshotWriter : ISchedulerJob, IDisposable
     private readonly CameraChannel channel;
 
     private readonly IJpegEncoderFactory encoderFactory;
+
+    private readonly IJpegDecoderFactory decoderFactory;
 
     private readonly LocalTimeProvider timeProvider;
 
@@ -69,11 +70,20 @@ public sealed class SnapshotWriter : ISchedulerJob, IDisposable
 
     public long SavedCount => Interlocked.Read(ref savedCount);
 
-    public SnapshotWriter(ILogger log, CameraChannel channel, IJpegEncoderFactory encoderFactory, LocalTimeProvider timeProvider, SnapshotSetting setting, CameraSetting cameraSetting, string folder)
+    public SnapshotWriter(
+        ILogger log,
+        CameraChannel channel,
+        IJpegEncoderFactory encoderFactory,
+        IJpegDecoderFactory decoderFactory,
+        LocalTimeProvider timeProvider,
+        SnapshotSetting setting,
+        CameraSetting cameraSetting,
+        string folder)
     {
         this.log = log;
         this.channel = channel;
         this.encoderFactory = encoderFactory;
+        this.decoderFactory = decoderFactory;
         this.timeProvider = timeProvider;
         this.setting = setting;
         schedule = CronExpression.Parse(setting.Schedule);
@@ -221,9 +231,10 @@ public sealed class SnapshotWriter : ISchedulerJob, IDisposable
             return;
         }
 
-        using var image = captured.Image;
+        var image = captured.Image;
         try
         {
+            image ??= Decode(captured.Jpeg.Span);
             var timestamp = setting.Timestamp;
             if (timestamp.Enable)
             {
@@ -232,28 +243,27 @@ public sealed class SnapshotWriter : ISchedulerJob, IDisposable
             }
 
             using var encoder = encoderFactory.Create(setting.Quality);
-            var buffer = ArrayPool<byte>.Shared.Rent(encoder.GetMaxLength(image.Width, image.Height));
-            try
-            {
-                if (!encoder.TryEncodeNv12(image.Y, image.Stride, image.Uv, image.Stride, image.Width, image.Height, buffer, out var written))
-                {
-                    throw new InvalidOperationException("JPEG encoding failed.");
-                }
-
-                var scheduledTime = timeProvider.ToLocal(time);
-                var path = await WriteAsync(scheduledTime.DateTime, buffer.AsMemory(0, written), cancellationToken).ConfigureAwait(false);
-                Succeed(new SavedSnapshot(path, scheduledTime, captured.Time));
-                log.DebugSnapshotSaved(Id, path, written, Stopwatch.GetElapsedTime(start).TotalMilliseconds);
-            }
-            finally
-            {
-                ArrayPool<byte>.Shared.Return(buffer);
-            }
+            var jpeg = encoder.Encode(image) ?? throw new InvalidOperationException("JPEG encoding failed.");
+            var scheduledTime = timeProvider.ToLocal(time);
+            var path = await WriteAsync(scheduledTime.DateTime, jpeg, cancellationToken).ConfigureAwait(false);
+            Succeed(new SavedSnapshot(path, scheduledTime, captured.Time));
+            log.DebugSnapshotSaved(Id, path, jpeg.Length, Stopwatch.GetElapsedTime(start).TotalMilliseconds);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or COMException or ArgumentException or InvalidOperationException)
         {
             Fail(ex.Message, ex);
         }
+        finally
+        {
+            image?.Dispose();
+        }
+    }
+
+    // The JPEG of an MJPEG camera as NV12
+    private Nv12Image Decode(ReadOnlySpan<byte> jpeg)
+    {
+        using var decoder = decoderFactory.Create();
+        return decoder.Decode(jpeg) ?? throw new InvalidOperationException("JPEG decoding failed.");
     }
 
     // The first frame captured at the time or later, null when no frame comes in time
@@ -276,7 +286,7 @@ public sealed class SnapshotWriter : ISchedulerJob, IDisposable
             if (!source.TrySetCanceled(cancellationToken) && source.Task.IsCompletedSuccessfully)
             {
                 var late = await source.Task.ConfigureAwait(false);
-                late.Image.Dispose();
+                late.Image?.Dispose();
             }
 
             if (ex is OperationCanceledException)
@@ -333,35 +343,59 @@ public sealed class SnapshotWriter : ISchedulerJob, IDisposable
     {
         var frame = e.Frame;
         var current = Volatile.Read(ref request);
-        if ((current is null) || (frame.CaptureTime < current.NotBefore) || (Interlocked.CompareExchange(ref request, null, current) != current))
+        if ((current is null) || (frame.CaptureTime < current.NotBefore))
+        {
+            return;
+        }
+
+        // The JPEG of an MJPEG camera is copied as it is, a frame that is not a JPEG leaves the request for the next frame
+        var jpeg = ReadOnlyMemory<byte>.Empty;
+        if ((frame.PixelFormat == VideoPixelFormat.Mjpeg) && !TryCopyJpeg(frame.Span, out jpeg))
+        {
+            return;
+        }
+
+        if (Interlocked.CompareExchange(ref request, null, current) != current)
         {
             return;
         }
 
         var source = current.Source;
-        Nv12Image? image;
-        try
+        Nv12Image? image = null;
+        if (jpeg.IsEmpty)
         {
-            image = Nv12Image.FromFrame(in frame);
-        }
-        catch (ArgumentException ex)
-        {
-            source.TrySetException(new InvalidOperationException("Unexpected frame layout.", ex));
-            return;
-        }
+            try
+            {
+                image = Nv12Image.FromFrame(in frame);
+            }
+            catch (ArgumentException ex)
+            {
+                source.TrySetException(new InvalidOperationException("Unexpected frame layout.", ex));
+                return;
+            }
 
-        if (image is null)
-        {
-            source.TrySetException(new InvalidOperationException("Format not supported."));
-            return;
+            if (image is null)
+            {
+                source.TrySetException(new InvalidOperationException("Format not supported."));
+                return;
+            }
         }
 
         // Local time of the capture
         var time = timeProvider.GetLocalNow() - (CaptureClock.Now - frame.CaptureTime);
-        if (!source.TrySetResult(new CapturedImage(image, time)))
+        if (!source.TrySetResult(new CapturedImage(image, jpeg, time)))
         {
-            image.Dispose();
+            image?.Dispose();
         }
+    }
+
+    // With the standard Huffman tables when the frame has none
+    private static bool TryCopyJpeg(ReadOnlySpan<byte> frame, out ReadOnlyMemory<byte> jpeg)
+    {
+        var buffer = GC.AllocateUninitializedArray<byte>(frame.Length + MjpegFrame.MaxAddedLength);
+        var written = MjpegFrame.CopyAsJpeg(frame, buffer);
+        jpeg = buffer.AsMemory(0, written);
+        return written > 0;
     }
 
     // Completed by the first frame captured at NotBefore (capture clock) or later
@@ -377,5 +411,6 @@ public sealed class SnapshotWriter : ISchedulerJob, IDisposable
         }
     }
 
-    private readonly record struct CapturedImage(Nv12Image Image, DateTimeOffset Time);
+    // The copy of the frame: the image, or the JPEG of an MJPEG camera
+    private readonly record struct CapturedImage(Nv12Image? Image, ReadOnlyMemory<byte> Jpeg, DateTimeOffset Time);
 }

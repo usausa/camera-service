@@ -19,8 +19,8 @@ public sealed class CameraDeviceSetting
     // Identifies one of the devices with the same name (shown in the log and /api/devices)
     public string DeviceId { get; set; } = string.Empty;
 
-    // The streams encode only these formats
-    [AllowedValues(VideoPixelFormat.Yuy2, VideoPixelFormat.Nv12)]
+    // The streams encode YUY2 and NV12, and send the JPEG of MJPEG as the camera encoded it
+    [AllowedValues(VideoPixelFormat.Yuy2, VideoPixelFormat.Nv12, VideoPixelFormat.Mjpeg)]
     public VideoPixelFormat Format { get; set; } = VideoPixelFormat.Yuy2;
 
     [Range(1, 8192)]

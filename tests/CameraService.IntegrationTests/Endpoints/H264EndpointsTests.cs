@@ -5,8 +5,11 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.WebSockets;
 
+using CameraService.Core;
 using CameraService.Host.Services;
 using CameraService.Host.Testing;
+
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 // The test server uses the software encoder
 public sealed class H264EndpointsTests
@@ -145,6 +148,36 @@ public sealed class H264EndpointsTests
                 using var response = await server.Client.GetAsync(server.GetUri(H264Path), cancellationToken).ConfigureAwait(true);
 
                 // Assert
+                Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+                Assert.Null(server.Manager.Find(ServiceTestServer.CameraId)!.H264);
+            });
+
+    [Fact]
+    public Task H264IsNotOfferedWithoutEncoder() =>
+        ServiceTestServer.RunWithServicesAsync(
+            null,
+            static services => services.RemoveAll<IH264EncoderFactory>(),
+            static async (server, cancellationToken) =>
+            {
+                // Act
+                using var response = await server.Client.GetAsync(server.GetUri(H264Path), cancellationToken).ConfigureAwait(true);
+
+                // Assert (the live view uses MJPEG)
+                Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+                Assert.Null(server.Manager.Find(ServiceTestServer.CameraId)!.H264);
+            });
+
+    // The JPEG of the camera is sent as it is
+    [Fact]
+    public Task H264IsNotOfferedForMjpeg() =>
+        ServiceTestServer.RunAsync(
+            new Dictionary<string, string?> { ["Cameras:0:Format"] = "Mjpeg" },
+            static async (server, cancellationToken) =>
+            {
+                // Act
+                using var response = await server.Client.GetAsync(server.GetUri(H264Path), cancellationToken).ConfigureAwait(true);
+
+                // Assert (the live view uses MJPEG)
                 Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
                 Assert.Null(server.Manager.Find(ServiceTestServer.CameraId)!.H264);
             });

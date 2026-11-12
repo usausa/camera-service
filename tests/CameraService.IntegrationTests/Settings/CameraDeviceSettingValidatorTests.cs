@@ -44,6 +44,24 @@ public sealed class CameraDeviceSettingValidatorTests
         Assert.Contains("[front]", result.FailureMessage, StringComparison.Ordinal);
     }
 
+    // Encoded by the streams, or sent as the camera encoded it (MJPEG)
+    [Theory]
+    [InlineData(VideoPixelFormat.Yuy2)]
+    [InlineData(VideoPixelFormat.Nv12)]
+    [InlineData(VideoPixelFormat.Mjpeg)]
+    public void FormatOfStreamsPasses(VideoPixelFormat format)
+    {
+        // Arrange
+        var camera = Camera("front");
+        camera.Format = format;
+
+        // Act
+        var result = validator.Validate(null, [camera]);
+
+        // Assert
+        Assert.True(result.Succeeded);
+    }
+
     [Fact]
     public void UnsupportedFormatFails()
     {

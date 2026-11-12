@@ -67,7 +67,7 @@ public sealed class CameraChannelDeviceTests
                 await ServiceTestServer.WaitUntilAsync(() => server.Channel.State == CameraState.Failed, cancellationToken).ConfigureAwait(true);
 
                 // Assert
-                Assert.Equal("Format YUY2 640x480 30fps not supported. Test camera: YUY2 320x240 30fps. Test camera 2: YUY2 320x240 30fps.", server.Channel.ErrorMessage);
+                Assert.Equal("Format YUY2 640x480 30fps not supported. Test camera: YUY2 320x240 30fps, MJPEG 320x240 30fps. Test camera 2: YUY2 320x240 30fps.", server.Channel.ErrorMessage);
                 Assert.Equal(0, server.Camera.CreatedCount);
             });
 }

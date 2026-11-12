@@ -43,6 +43,22 @@ public sealed class StreamEndpointsTests
             Assert.All(parts, static x => Assert.Equal((TestCameraProvider.Width, TestCameraProvider.Height), MjpegReader.GetJpegSize(x)));
         });
 
+    // The JPEG of an MJPEG camera is sent as it is, in the stream and as the still image
+    [Fact]
+    public Task MjpegOfCameraIsSentAsItIs() =>
+        ServiceTestServer.RunAsync(new Dictionary<string, string?> { ["Cameras:0:Format"] = "Mjpeg" }, static async (server, cancellationToken) =>
+        {
+            // Act
+            using var response = await server.Client.GetAsync(server.GetUri(StreamPath), HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(true);
+            var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(true);
+            var parts = await new MjpegReader(stream).ReadPartsAsync(3, cancellationToken).ConfigureAwait(true);
+            var still = await server.Client.GetByteArrayAsync(server.GetUri(SnapshotPath), cancellationToken).ConfigureAwait(true);
+
+            // Assert
+            Assert.All(parts, static x => Assert.Equal(TestCapture.JpegFrame, x));
+            Assert.Equal(TestCapture.JpegFrame, still);
+        });
+
     [Fact]
     public Task SnapshotReturnsJpeg() =>
         ServiceTestServer.RunAsync(null, static async (server, cancellationToken) =>

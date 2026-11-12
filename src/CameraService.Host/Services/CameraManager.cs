@@ -27,13 +27,14 @@ public sealed class CameraManager : IHostedService, IAsyncDisposable
         ILoggerFactory loggerFactory,
         ICameraProvider provider,
         IJpegEncoderFactory encoderFactory,
-        IH264EncoderFactory h264EncoderFactory,
+        IJpegDecoderFactory decoderFactory,
         LocalTimeProvider timeProvider,
         CameraSetting cameraSetting,
         StreamSetting streamSetting,
         H264Setting h264Setting,
         StorageSetting storageSetting,
-        IOptions<List<CameraDeviceSetting>> devices)
+        IOptions<List<CameraDeviceSetting>> devices,
+        IH264EncoderFactory? h264EncoderFactory = null)
     {
         this.log = log;
         this.provider = provider;
@@ -44,9 +45,12 @@ public sealed class CameraManager : IHostedService, IAsyncDisposable
         cameras = [.. devices.Value.Select(x =>
         {
             var channel = new CameraChannel(channelLog, provider, x, cameraSetting);
-            var h264 = h264Setting.Enable ? new H264Publisher(h264Log, channel, h264EncoderFactory, h264Setting) : null;
-            var folder = SnapshotStorage.GetCameraFolder(AppContext.BaseDirectory, storageSetting.Path, x.Snapshot.Path, x.Id);
-            var snapshot = x.Snapshot.Enable ? new SnapshotWriter(snapshotLog, channel, encoderFactory, timeProvider, x.Snapshot, cameraSetting, folder) : null;
+            // A platform without an H.264 encoder and a camera of MJPEG have the live view in MJPEG only
+            var h264 = h264Setting.Enable && (h264EncoderFactory is not null) && (x.Format != VideoPixelFormat.Mjpeg)
+                ? new H264Publisher(h264Log, channel, h264EncoderFactory, h264Setting)
+                : null;
+            var folder = SnapshotStorage.GetCameraFolder(StorageSetting.BaseFolder, storageSetting.Path, x.Snapshot.Path, x.Id);
+            var snapshot = x.Snapshot.Enable ? new SnapshotWriter(snapshotLog, channel, encoderFactory, decoderFactory, timeProvider, x.Snapshot, cameraSetting, folder) : null;
             return new Camera(x, channel, new JpegPublisher(publisherLog, channel, encoderFactory, streamSetting), h264, folder, snapshot);
         })];
     }
@@ -123,7 +127,7 @@ public sealed class CameraManager : IHostedService, IAsyncDisposable
                 log.InfoDeviceFound(device.Name, device.Id, String.Join(", ", device.Formats));
             }
         }
-        catch (Exception ex) when (ex is COMException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is COMException or UnauthorizedAccessException or IOException)
         {
             log.ErrorDeviceEnumerationFailed(ex);
         }

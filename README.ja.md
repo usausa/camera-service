@@ -2,7 +2,7 @@
 
 🌐 [English](README.md) | 日本語
 
-カメラをブラウザーへ配信し、決めた時刻に静止画を保存する Windows サービス。使っていないカメラとエンコーダーは閉じる。
+カメラをブラウザーへ配信し、決めた時刻に静止画を保存する Windows と Linux(systemd)のサービス。使っていないカメラとエンコーダーは閉じる。
 
 <img src="docs/image.png" title="Image" width="50%">
 
@@ -22,15 +22,20 @@
 
 ## 💻 動作環境
 
-- Windows 11、ASP.NET Core 10 ランタイム(ビルドは .NET 10 SDK)
-- USB カメラ(YUY2 または NV12)
-- ⚠️ カメラの使用を許可(設定 > プライバシーとセキュリティ > カメラ)
+- Windows: Windows 11、ASP.NET Core 10 ランタイム、USB カメラ(YUY2 または NV12)
+  - ⚠️ カメラの使用を許可(設定 > プライバシーとセキュリティ > カメラ)
+- Linux: systemd、ASP.NET Core 10 ランタイム(または自己完結型で発行)、USB カメラ(YUY2、NV12 または MJPEG)
+  - パッケージ `libturbojpeg`(Ubuntu)または `libturbojpeg0`(Debian、Raspberry Pi OS)
+  - H.264 なし: ライブは MJPEG
+- ビルドは .NET 10 SDK
 
 ## ▶️ 試す
 
 ```
-dotnet run --project src/CameraService.Host
+dotnet run --project src/CameraService.Host -f net10.0-windows10.0.26100.0
 ```
+
+- Linux は `-f net10.0`
 
 - `http://localhost:5180`: カメラ一覧
 - `/api/devices`: カメラと形式(`Device` / `DeviceId` に使用)
@@ -38,9 +43,11 @@ dotnet run --project src/CameraService.Host
 
 ## 📦 サービスとして導入
 
+### 🪟 Windows
+
 1. 発行
    ```
-   dotnet publish src/CameraService.Host -c Release -o C:\Services\CameraService
+   dotnet publish src/CameraService.Host -c Release -f net10.0-windows10.0.26100.0 -o C:\Services\CameraService
    ```
 2. 発行先の `appsettings.json` の `Cameras` を編集
 3. 登録して起動(管理者の PowerShell)
@@ -55,7 +62,29 @@ dotnet run --project src/CameraService.Host
 - LocalSystem で動作、自動起動(`-StartupType Manual` で手動)、失敗の 1 分後に再起動
 - `-FirewallPort 5180` で他の PC 向けにポートを開放
 - ⚠️ 発行先のフォルダーを使う(ビルドの出力には `wwwroot` がない)
-- **ログ:** 発行先の 1 つ上の `Log\CameraService_yyyyMMdd.log`。`Serilog:MinimumLevel:Default` を `Debug` にすると保存ごとに 1 行
+- **ログ:** 発行先の 1 つ上の `log\CameraService_yyyyMMdd.log`。`Serilog:MinimumLevel:Default` を `Debug` にすると保存ごとに 1 行
+
+### 🐧 Linux(systemd)
+
+1. 発行(Raspberry Pi は `linux-arm64`、ランタイムがなければ `--self-contained true`)
+   ```
+   dotnet publish src/CameraService.Host -c Release -f net10.0 -r linux-x64 --self-contained false -o publish
+   ```
+2. 発行先の `appsettings.json` の `Cameras` を編集
+3. `/opt/camera-service` に配置し、登録して起動
+   ```
+   sudo bash tools/install-service.sh publish
+   ```
+4. 削除
+   ```
+   sudo bash tools/uninstall-service.sh
+   ```
+
+- ユーザー `camera-service`(カメラ用に `video` グループ)で動作、システムと一緒に起動、失敗の 1 分後に再起動
+- 設定: `/opt/camera-service/appsettings.json`。`sudo systemctl restart camera-service` で反映。入れ直しでは残り、削除ではプログラムと一緒に消える
+- 画像: 相対パスの `Storage:Path` は `/var/lib/camera-service` から。削除しても画像とログは残る
+- **ログ:** `/var/log/camera-service/CameraService_yyyyMMdd.log` と `journalctl -u camera-service`
+- 💡 他の PC で発行した場合: 発行先のフォルダーと `tools` を Linux の PC に写す
 
 ## ⚙️ 設定
 
@@ -105,7 +134,7 @@ dotnet run --project src/CameraService.Host
 | `Name` | 表示名 | `Id` |
 | `Device` | デバイス名。`Device` と `DeviceId` がなければ形式が合う最初のデバイス | 空 |
 | `DeviceId` | `/api/devices` の `id`(同名のデバイスの区別) | 空 |
-| `Format` | `Yuy2` / `Nv12`(カメラの形式は `/api/devices` で確認) | `Yuy2` |
+| `Format` | `Yuy2` / `Nv12`、Linux は `Mjpeg` も(カメラの形式は `/api/devices` で確認) | `Yuy2` |
 | `Width` / `Height` / `Fps` | カメラが持つ形式 | `640` / `480` / `30` |
 | `Snapshot:Enable` | 定期保存 | `false` |
 | `Snapshot:Schedule` | Cron | `* * * * *` |
@@ -118,6 +147,7 @@ dotnet run --project src/CameraService.Host
 
 - ⚠️ 形式が合うデバイスが複数あれば `Device` を指定
 - `Format ... not supported` にはデバイスの形式を表示
+- `Mjpeg`: カメラの JPEG をそのまま送信(`Stream:Quality` は使わない)、H.264 なし
 - 💡 同じ USB に複数台なら NV12(YUY2 は帯域が大きい)
 
 ### 🔒 HTTPS
@@ -137,6 +167,7 @@ dotnet run --project src/CameraService.Host
 ```
 
 - 証明書はコンピューターのストアに置き、見る端末で信頼させる
+- Linux は `"Certificate": { "Path": "cert.pem", "KeyPath": "key.pem" }`。ファイルはユーザー `camera-service` が読めること
 - 他の PC でも H.264 が使え、HTTP/2 になる
 
 ## 🕒 時刻の指定(Cron)
@@ -167,6 +198,7 @@ dotnet run --project src/CameraService.Host
 | `Images` | `outdoor\front` | `{サービス}\Images\outdoor\front` |
 | `Images` | `E:\Front` | `E:\Front` |
 
+- Linux のサービスでは `{サービス}` は `/var/lib/camera-service`、フォルダーの区切りは `/`
 - 2 台で同じフォルダーは不可(解決後のパスで確認)
 - カメラは予定の `WarmupTime` + 2 秒前に開き、`IdleTime` で閉じる
 - 保存の失敗は次に成功するまで警告 1 回

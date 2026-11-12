@@ -58,6 +58,50 @@ public sealed class Nv12Image : IDisposable
         }
     }
 
+    // Writes the chroma from Cb and Cr samples whose plane has the size of the image or a half of it in either direction (rounded up).
+    // The samples of a row are step bytes apart (1 for separate planes, 2 for interleaved CbCr).
+    // Each sample of 4:2:0 covers 2x2 pixels: the average of the source samples that cover them (one sample when the source is already 4:2:0).
+    public void WriteChroma(ReadOnlySpan<byte> cb, ReadOnlySpan<byte> cr, int stride, int step, int sourceWidth, int sourceHeight)
+    {
+        if ((sourceWidth != Width) && (sourceWidth != (Width + 1) / 2))
+        {
+            throw new ArgumentOutOfRangeException(nameof(sourceWidth));
+        }
+
+        if ((sourceHeight != Height) && (sourceHeight != (Height + 1) / 2))
+        {
+            throw new ArgumentOutOfRangeException(nameof(sourceHeight));
+        }
+
+        var last = ((sourceHeight - 1) * stride) + ((sourceWidth - 1) * step);
+        if ((cb.Length <= last) || (cr.Length <= last))
+        {
+            throw new ArgumentException("Invalid chroma plane.", nameof(cb));
+        }
+
+        var horizontal = sourceWidth == Width ? 1 : 2;
+        var vertical = sourceHeight == Height ? 1 : 2;
+        var destination = Uv;
+        var columns = (Width + 1) / 2;
+        var rows = (Height + 1) / 2;
+        for (var row = 0; row < rows; row++)
+        {
+            var top = Math.Min((row * 2) / vertical, sourceHeight - 1) * stride;
+            var bottom = Math.Min(((row * 2) + 1) / vertical, sourceHeight - 1) * stride;
+            var line = destination.Slice(row * Stride, columns * 2);
+            for (var column = 0; column < columns; column++)
+            {
+                var left = Math.Min((column * 2) / horizontal, sourceWidth - 1) * step;
+                var right = Math.Min(((column * 2) + 1) / horizontal, sourceWidth - 1) * step;
+                line[column * 2] = Average(cb, top, bottom, left, right);
+                line[(column * 2) + 1] = Average(cr, top, bottom, left, right);
+            }
+        }
+    }
+
+    private static byte Average(ReadOnlySpan<byte> plane, int top, int bottom, int left, int right) =>
+        (byte)((plane[top + left] + plane[top + right] + plane[bottom + left] + plane[bottom + right] + 2) / 4);
+
     private byte[] GetBuffer()
     {
         var current = buffer;

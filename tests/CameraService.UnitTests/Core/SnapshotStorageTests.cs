@@ -14,8 +14,27 @@ public sealed class SnapshotStorageTests
     [InlineData("Images", @"E:\Front", @"E:\Front")]
     public void CameraFolderIsResolved(string storagePath, string cameraPath, string expected)
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Paths of Windows");
+
         // Act (relative to the folder of the service, then to the storage path)
         var folder = SnapshotStorage.GetCameraFolder(@"C:\Service", storagePath, cameraPath, "front");
+
+        // Assert
+        Assert.Equal(expected, folder);
+    }
+
+    [Theory]
+    [InlineData("Images", "", "/opt/camera-service/Images/front")]
+    [InlineData("../Images", "", "/opt/Images/front")]
+    [InlineData("/var/lib/camera-service/Images", "", "/var/lib/camera-service/Images/front")]
+    [InlineData("Images", "outdoor/front", "/opt/camera-service/Images/outdoor/front")]
+    [InlineData("Images", "/mnt/usb/front/", "/mnt/usb/front")]
+    public void CameraFolderIsResolvedOnLinux(string storagePath, string cameraPath, string expected)
+    {
+        Assert.SkipUnless(OperatingSystem.IsLinux(), "Paths of Linux");
+
+        // Act
+        var folder = SnapshotStorage.GetCameraFolder("/opt/camera-service", storagePath, cameraPath, "front");
 
         // Assert
         Assert.Equal(expected, folder);
@@ -88,10 +107,25 @@ public sealed class SnapshotStorageTests
     public void ImagePathHasDateAndTime()
     {
         // Act
-        var path = SnapshotStorage.GetImagePath(@"C:\Images\front", new DateOnly(2026, 1, 2), new TimeOnly(3, 4, 5));
+        var path = SnapshotStorage.GetImagePath(Path.Combine("Images", "front"), new DateOnly(2026, 1, 2), new TimeOnly(3, 4, 5));
 
         // Assert
-        Assert.Equal(@"C:\Images\front\20260102\030405.jpg", path);
+        Assert.Equal(Path.Combine("Images", "front", "20260102", "030405.jpg"), path);
+    }
+
+    // The free space of a Linux path is the one of its file system
+    [Theory]
+    [InlineData("/var/lib/camera-service/Images/front", "/var/lib/camera-service")]
+    [InlineData("/var/lib/camera-service", "/var/lib/camera-service")]
+    [InlineData("/var/lib/camera-service2/Images", "/var")]
+    [InlineData("/home/user/Images", "/")]
+    public void VolumeIsDeepestMountPoint(string path, string expected)
+    {
+        // Act
+        var volume = SnapshotStorage.FindMountPoint(path, ["/", "/proc", "/var", "/var/lib/camera-service/"]);
+
+        // Assert
+        Assert.Equal(expected, volume);
     }
 
     [Fact]

@@ -46,7 +46,7 @@ public sealed class CameraDeviceSettingValidator : IValidateOptions<List<CameraD
         {
             try
             {
-                folders.Add(SnapshotStorage.GetCameraFolder(AppContext.BaseDirectory, storage.Value.Path, camera.Snapshot.Path, camera.Id));
+                folders.Add(SnapshotStorage.GetCameraFolder(StorageSetting.BaseFolder, storage.Value.Path, camera.Snapshot.Path, camera.Id));
             }
             catch (ArgumentException ex)
             {

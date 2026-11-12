@@ -102,8 +102,30 @@ public static class SnapshotStorage
     public static IReadOnlyList<DateFolder> GetDeletable(IEnumerable<DateFolder> folders, DateOnly today) =>
         [.. folders.Where(x => x.Date < today).OrderBy(static x => x.Date).ThenBy(static x => x.Path, StringComparer.OrdinalIgnoreCase)];
 
-    // Root of the drive of the path ("D:\", or the share of a network path)
-    public static string GetVolume(string path) => Path.GetPathRoot(Path.GetFullPath(path)) ?? path;
+    // Root of the drive of the path ("D:\", or the share of a network path), on Linux the deepest mount point that contains the path
+    public static string GetVolume(string path)
+    {
+        var fullPath = Path.GetFullPath(path);
+        return OperatingSystem.IsWindows() ? Path.GetPathRoot(fullPath) ?? path : FindMountPoint(fullPath, GetMountPoints());
+    }
+
+    // The deepest of the mount points that contains the path, the root when none does
+    internal static string FindMountPoint(string fullPath, IEnumerable<string> mountPoints)
+    {
+        var found = "/";
+        foreach (var mountPoint in mountPoints)
+        {
+            var root = Path.TrimEndingDirectorySeparator(mountPoint);
+            if ((root.Length > found.Length) &&
+                fullPath.StartsWith(root, StringComparison.Ordinal) &&
+                ((fullPath.Length == root.Length) || (fullPath[root.Length] == '/')))
+            {
+                found = root;
+            }
+        }
+
+        return found;
+    }
 
     // Free space of the drive of the path, null when it is unknown (for example a network path)
     public static long? GetFreeSpace(string path)
@@ -116,6 +138,18 @@ public static class SnapshotStorage
         catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
         {
             return null;
+        }
+    }
+
+    private static string[] GetMountPoints()
+    {
+        try
+        {
+            return [.. DriveInfo.GetDrives().Select(static x => x.Name)];
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return [];
         }
     }
 }

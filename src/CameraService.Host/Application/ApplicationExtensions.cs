@@ -9,7 +9,11 @@ using CameraService.Host.Endpoints;
 using CameraService.Host.Services;
 using CameraService.Host.Settings;
 using CameraService.Host.Workers;
+#if WINDOWS
 using CameraService.Platform.Windows;
+#else
+using CameraService.Platform.Linux;
+#endif
 
 using Serilog;
 
@@ -21,8 +25,10 @@ public static class ApplicationExtensions
 
     public static IHostApplicationBuilder ConfigureHost(this IHostApplicationBuilder builder)
     {
-        // Runs as a Windows service when started by the service control manager
-        builder.Services.AddWindowsService();
+        // Runs as a Windows service or a systemd service when started as one
+        builder.Services
+            .AddWindowsService()
+            .AddSystemd();
 
         return builder;
     }
@@ -33,10 +39,30 @@ public static class ApplicationExtensions
 
     public static IHostApplicationBuilder ConfigureLogging(this IHostApplicationBuilder builder)
     {
+        // The log files go to the logs directory when systemd runs the service with LogsDirectory
+        SetLogFolder(builder.Configuration, Environment.GetEnvironmentVariable("LOGS_DIRECTORY"));
+
         builder.Logging.ClearProviders();
         builder.Services.AddSerilog(options => options.ReadFrom.Configuration(builder.Configuration));
 
         return builder;
+    }
+
+    // The file sinks of Serilog write into the folder (the first one, systemd separates more than one with ':'), nothing changes without a folder
+    internal static void SetLogFolder(IConfiguration configuration, string? folder)
+    {
+        if (String.IsNullOrEmpty(folder))
+        {
+            return;
+        }
+
+        foreach (var sink in configuration.GetSection("Serilog:WriteTo").GetChildren())
+        {
+            if (String.Equals(sink["Name"], "File", StringComparison.Ordinal) && (sink["Args:path"] is { } path))
+            {
+                sink["Args:path"] = Path.Combine(folder.Split(':')[0], Path.GetFileName(path));
+            }
+        }
     }
 
     //--------------------------------------------------------------------------------
@@ -100,7 +126,11 @@ public static class ApplicationExtensions
         builder.Services.AddSingleton(static p => p.GetRequiredService<IOptions<RetentionSetting>>().Value);
 
         // Platform
+#if WINDOWS
         builder.Services.AddWindowsPlatform();
+#else
+        builder.Services.AddLinuxPlatform();
+#endif
 
         // Service
         // Not registered as TimeProvider, other components expect UTC from it
@@ -136,7 +166,7 @@ public static class ApplicationExtensions
         app.Logger.InfoServiceSettingsCamera(camera.IdleTime, camera.WarmupTime, camera.FrameTimeout);
         app.Logger.InfoServiceSettingsStream(stream.Fps, stream.Quality);
         app.Logger.InfoServiceSettingsH264(h264.Enable, h264.Bitrate, h264.KeyFrameInterval, h264.PreferHardware);
-        app.Logger.InfoServiceSettingsStorage(Path.GetFullPath(storage.Path, AppContext.BaseDirectory));
+        app.Logger.InfoServiceSettingsStorage(Path.GetFullPath(storage.Path, StorageSetting.BaseFolder));
         app.Logger.InfoServiceSettingsRetention(retention.Schedule, retention.Days, retention.MinFreeSpace);
         if (devices.Count == 0)
         {

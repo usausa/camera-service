@@ -1,0 +1,25 @@
+# The camera service as a systemd service, registered by install-service.sh
+[Unit]
+Description=Camera streaming and snapshots
+After=network.target
+
+[Service]
+Type=notify
+User=camera-service
+SupplementaryGroups=video
+WorkingDirectory=/opt/camera-service
+# install-service.sh writes the program of a self-contained publish, or dotnet with CameraService.Host.dll
+ExecStart=/opt/camera-service/CameraService.Host
+# /var/lib/camera-service: a relative Storage:Path and the home of the user, /var/log/camera-service: the log files
+StateDirectory=camera-service
+LogsDirectory=camera-service
+SyslogIdentifier=camera-service
+# Started again 1 minute after a failure
+Restart=on-failure
+RestartSec=60
+# /usr, /boot and /etc are read-only for the service
+NoNewPrivileges=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

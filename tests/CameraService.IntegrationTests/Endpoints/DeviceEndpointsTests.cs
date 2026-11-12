@@ -17,14 +17,14 @@ public sealed class DeviceEndpointsTests
             // Assert
             Assert.Collection(
                 document.RootElement.EnumerateArray(),
-                static x => AssertDevice(x, TestCameraProvider.DeviceId, TestCameraProvider.DeviceName),
-                static x => AssertDevice(x, TestCameraProvider.SecondDeviceId, TestCameraProvider.SecondDeviceName));
+                static x => AssertDevice(x, TestCameraProvider.DeviceId, TestCameraProvider.DeviceName, "YUY2 320x240 30fps", "MJPEG 320x240 30fps"),
+                static x => AssertDevice(x, TestCameraProvider.SecondDeviceId, TestCameraProvider.SecondDeviceName, "YUY2 320x240 30fps"));
         });
 
-    private static void AssertDevice(JsonElement device, string id, string name)
+    private static void AssertDevice(JsonElement device, string id, string name, params string[] formats)
     {
         Assert.Equal(id, device.GetProperty("id").GetString());
         Assert.Equal(name, device.GetProperty("name").GetString());
-        Assert.Equal("YUY2 320x240 30fps", Assert.Single(device.GetProperty("formats").EnumerateArray()).GetString());
+        Assert.Equal(formats, device.GetProperty("formats").EnumerateArray().Select(static x => x.GetString()));
     }
 }

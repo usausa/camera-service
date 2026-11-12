@@ -1,9 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <TargetFrameworks>net10.0-windows10.0.26100.0;net10.0</TargetFrameworks>
     <OutputType>Exe</OutputType>
     <RootNamespace>CameraService</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <CodeAnalysisRuleSet>..\..\Analyzers.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
 
@@ -22,7 +23,16 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\CameraService.Core\CameraService.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
     <ProjectReference Include="..\..\src\CameraService.Platform.Windows\CameraService.Platform.Windows.csproj" />
+    <Compile Remove="Platform\Linux\**" />
+  </ItemGroup>
+
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) != 'windows'">
+    <ProjectReference Include="..\..\src\CameraService.Platform.Linux\CameraService.Platform.Linux.csproj" />
+    <Compile Remove="Platform\Windows\**" />
   </ItemGroup>
 
   <ItemGroup>
