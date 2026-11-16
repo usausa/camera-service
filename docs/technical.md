@@ -34,7 +34,7 @@ The specifications of the cameras first, then those of the application. For inst
 ### ⚠️ Failures
 
 - Failure: the open or the close fails, the camera reports an error, no frame for `FrameTimeout`, or an unexpected exception in a step
-- Linux: the camera reports no error, a removed or stopped camera is found by `FrameTimeout`
+- Linux: a removed camera fails at once, a camera that stops sending is found by `FrameTimeout`
 - The camera closes and opens again after 5 → 10 → 30 → 60 seconds, only while it is leased
 - It counts as failed until its next frame: if it opens but sends nothing, the delays keep growing and `/health` stays 503
 - A save fails at once while the camera waits for the retry

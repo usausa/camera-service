@@ -31,9 +31,15 @@ fi
 if [ -f "$source/libcoreclr.so" ]; then
     exec_start="$target/CameraService.Host"
 else
+    version=$(grep -oE '"tfm": *"net[0-9]+' "$source/CameraService.Host.runtimeconfig.json" 2> /dev/null | grep -oE '[0-9]+$' || true)
+    if [ -z "$version" ]; then
+        echo "Not found: $source/CameraService.Host.runtimeconfig.json" >&2
+        exit 1
+    fi
+
     dotnet=$(command -v dotnet || true)
-    if [ -z "$dotnet" ] || ! grep -q '^Microsoft\.AspNetCore\.App 10\.' <<< "$("$dotnet" --list-runtimes)"; then
-        echo "ASP.NET Core 10 runtime not found: install it, or publish with --self-contained true." >&2
+    if [ -z "$dotnet" ] || ! grep -q "^Microsoft\.AspNetCore\.App $version\." <<< "$("$dotnet" --list-runtimes)"; then
+        echo "ASP.NET Core $version runtime not found: install it, or publish with --self-contained true." >&2
         exit 1
     fi
     exec_start="$dotnet $target/CameraService.Host.dll"

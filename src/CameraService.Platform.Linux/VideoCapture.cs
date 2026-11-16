@@ -1,5 +1,7 @@
 namespace CameraService.Platform.Linux;
 
+using System.Runtime.InteropServices;
+
 using CameraService.Core;
 
 using V4L2 = LinuxDotNet.Video4Linux2;
@@ -33,17 +35,7 @@ public sealed class VideoCapture : IVideoCapture
 
     public event EventHandler<FrameCapturedEventArgs>? FrameCaptured;
 
-    // The library reports no failure of the device: a camera that stops sending is found by the frame watchdog
-    public event EventHandler<VideoCaptureFailedEventArgs>? Failed
-    {
-        add
-        {
-        }
-
-        remove
-        {
-        }
-    }
+    public event EventHandler<VideoCaptureFailedEventArgs>? Failed;
 
     public VideoCapture(string deviceId)
     {
@@ -110,6 +102,7 @@ public sealed class VideoCapture : IVideoCapture
             height = created.Height;
             (plane0, plane1) = GetPlanes(pixelFormat, width, height, created.BytesPerLine);
             created.FrameCaptured += OnFrameCaptured;
+            created.CaptureFailed += OnCaptureFailed;
             capture = created;
         }
         catch
@@ -136,6 +129,7 @@ public sealed class VideoCapture : IVideoCapture
         }
 
         capture.FrameCaptured -= OnFrameCaptured;
+        capture.CaptureFailed -= OnCaptureFailed;
         try
         {
             // The device is closed after the capture thread ends, a thread that does not end keeps it
@@ -189,6 +183,17 @@ public sealed class VideoCapture : IVideoCapture
         finally
         {
             frameEventArgs.Frame = default;
+        }
+    }
+
+    private void OnCaptureFailed(int error)
+    {
+        try
+        {
+            Failed?.Invoke(this, new VideoCaptureFailedEventArgs(Marshal.GetPInvokeErrorMessage(error), (uint)error));
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
         }
     }
 }

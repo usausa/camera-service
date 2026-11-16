@@ -22,9 +22,9 @@
 
 ## 💻 動作環境
 
-- Windows: Windows 11、ASP.NET Core 10 ランタイム、USB カメラ(YUY2 または NV12)
+- Windows: Windows 11、ASP.NET Core 11 ランタイム、USB カメラ(YUY2 または NV12)
   - ⚠️ カメラの使用を許可(設定 > プライバシーとセキュリティ > カメラ)
-- Linux: systemd、ASP.NET Core 10 ランタイム(または自己完結型で発行)、USB カメラ(YUY2、NV12 または MJPEG)
+- Linux: systemd、ASP.NET Core 11 ランタイム(または自己完結型で発行)、USB カメラ(YUY2、NV12 または MJPEG)
   - パッケージ `libturbojpeg`(Ubuntu)または `libturbojpeg0`(Debian、Raspberry Pi OS)
   - H.264 なし: ライブは MJPEG
 - ビルドは .NET 11 SDK

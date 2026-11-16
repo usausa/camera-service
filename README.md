@@ -22,9 +22,9 @@ A service for Windows and Linux (systemd) that streams cameras to the browser an
 
 ## 💻 Requirements
 
-- Windows: Windows 11, ASP.NET Core 10 runtime, USB camera (YUY2 or NV12)
+- Windows: Windows 11, ASP.NET Core 11 runtime, USB camera (YUY2 or NV12)
   - ⚠️ Camera access allowed (Settings > Privacy & security > Camera)
-- Linux: systemd, ASP.NET Core 10 runtime (or a self-contained publish), USB camera (YUY2, NV12 or MJPEG)
+- Linux: systemd, ASP.NET Core 11 runtime (or a self-contained publish), USB camera (YUY2, NV12 or MJPEG)
   - Package `libturbojpeg` (Ubuntu) or `libturbojpeg0` (Debian, Raspberry Pi OS)
   - No H.264: the live view uses MJPEG
 - .NET 11 SDK to build
