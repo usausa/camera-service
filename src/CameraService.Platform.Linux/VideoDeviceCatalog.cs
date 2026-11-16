@@ -30,13 +30,15 @@ public static class VideoDeviceCatalog
 
     // The formats the streams can use, by pixel format, size and frame rate
     internal static IReadOnlyList<VideoFormat> ToVideoFormats(IEnumerable<(PixelFormat PixelFormat, Resolution Resolution, FrameInterval Interval)> entries) =>
-        [.. entries
+    [
+        .. entries
             .Select(static x => new VideoFormat(ToPixelFormat(x.PixelFormat), x.Resolution.Width, x.Resolution.Height, x.Interval.FramesPerSecond))
             .Where(static x => (x.PixelFormat != VideoPixelFormat.Unknown) && (x.FrameRate > 0))
             .Distinct()
             .OrderBy(static x => x.PixelFormat)
             .ThenBy(static x => x.Width * x.Height)
-            .ThenBy(static x => x.FrameRate)];
+            .ThenBy(static x => x.FrameRate)
+    ];
 
     internal static VideoPixelFormat ToPixelFormat(PixelFormat format) => format switch
     {

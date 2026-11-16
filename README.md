@@ -27,15 +27,15 @@ A service for Windows and Linux (systemd) that streams cameras to the browser an
 - Linux: systemd, ASP.NET Core 10 runtime (or a self-contained publish), USB camera (YUY2, NV12 or MJPEG)
   - Package `libturbojpeg` (Ubuntu) or `libturbojpeg0` (Debian, Raspberry Pi OS)
   - No H.264: the live view uses MJPEG
-- .NET 10 SDK to build
+- .NET 11 SDK to build
 
 ## ▶️ Try it
 
 ```
-dotnet run --project src/CameraService.Host -f net10.0-windows10.0.26100.0
+dotnet run --project src/CameraService.Host -f net11.0-windows10.0.26100.0
 ```
 
-- Linux: `-f net10.0`
+- Linux: `-f net11.0`
 
 - `http://localhost:5180`: camera list
 - `/api/devices`: cameras and formats (for `Device` / `DeviceId`)
@@ -47,7 +47,7 @@ dotnet run --project src/CameraService.Host -f net10.0-windows10.0.26100.0
 
 1. Publish
    ```
-   dotnet publish src/CameraService.Host -c Release -f net10.0-windows10.0.26100.0 -o C:\Services\CameraService
+   dotnet publish src/CameraService.Host -c Release -f net11.0-windows10.0.26100.0 -o C:\Services\CameraService
    ```
 2. Edit `Cameras` in the published `appsettings.json`
 3. Register and start (administrator PowerShell)
@@ -68,7 +68,7 @@ dotnet run --project src/CameraService.Host -f net10.0-windows10.0.26100.0
 
 1. Publish (`linux-arm64` for a Raspberry Pi, `--self-contained true` without the runtime)
    ```
-   dotnet publish src/CameraService.Host -c Release -f net10.0 -r linux-x64 --self-contained false -o publish
+   dotnet publish src/CameraService.Host -c Release -f net11.0 -r linux-x64 --self-contained false -o publish
    ```
 2. Edit `Cameras` in the published `appsettings.json`
 3. Place in `/opt/camera-service`, register and start

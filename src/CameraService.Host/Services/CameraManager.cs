@@ -42,17 +42,20 @@ public sealed class CameraManager : IHostedService, IAsyncDisposable
         var publisherLog = loggerFactory.CreateLogger<JpegPublisher>();
         var h264Log = loggerFactory.CreateLogger<H264Publisher>();
         var snapshotLog = loggerFactory.CreateLogger<SnapshotWriter>();
-        cameras = [.. devices.Value.Select(x =>
-        {
-            var channel = new CameraChannel(channelLog, provider, x, cameraSetting);
-            // A platform without an H.264 encoder and a camera of MJPEG have the live view in MJPEG only
-            var h264 = h264Setting.Enable && (h264EncoderFactory is not null) && (x.Format != VideoPixelFormat.Mjpeg)
-                ? new H264Publisher(h264Log, channel, h264EncoderFactory, h264Setting)
-                : null;
-            var folder = SnapshotStorage.GetCameraFolder(StorageSetting.BaseFolder, storageSetting.Path, x.Snapshot.Path, x.Id);
-            var snapshot = x.Snapshot.Enable ? new SnapshotWriter(snapshotLog, channel, encoderFactory, decoderFactory, timeProvider, x.Snapshot, cameraSetting, folder) : null;
-            return new Camera(x, channel, new JpegPublisher(publisherLog, channel, encoderFactory, streamSetting), h264, folder, snapshot);
-        })];
+        cameras =
+        [
+            .. devices.Value.Select(x =>
+            {
+                var channel = new CameraChannel(channelLog, provider, x, cameraSetting);
+                // A platform without an H.264 encoder and a camera of MJPEG have the live view in MJPEG only
+                var h264 = h264Setting.Enable && (h264EncoderFactory is not null) && (x.Format != VideoPixelFormat.Mjpeg)
+                    ? new H264Publisher(h264Log, channel, h264EncoderFactory, h264Setting)
+                    : null;
+                var folder = SnapshotStorage.GetCameraFolder(StorageSetting.BaseFolder, storageSetting.Path, x.Snapshot.Path, x.Id);
+                var snapshot = x.Snapshot.Enable ? new SnapshotWriter(snapshotLog, channel, encoderFactory, decoderFactory, timeProvider, x.Snapshot, cameraSetting, folder) : null;
+                return new Camera(x, channel, new JpegPublisher(publisherLog, channel, encoderFactory, streamSetting), h264, folder, snapshot);
+            })
+        ];
     }
 
     // Can be called more than once (the container disposes the singleton for each registration)

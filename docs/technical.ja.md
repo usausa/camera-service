@@ -8,7 +8,7 @@
 
 ### 🔎 デバイスと形式
 
-- Windows: ソースがすべてカラーのデバイスをカメラとして扱う。複数(プレビューと録画)あれば最初を使用。赤外線カメラとセンサーグループは対象外
+- Windows: カラーのソースを持ち、ほかのソースがカラーか Custom だけのデバイスをカメラとして扱う。カラーが複数(プレビューと録画)あれば最初を使用。赤外線カメラとセンサーグループは対象外
 - Linux: YUY2、NV12、MJPEG のビデオキャプチャーデバイス(`/dev/video*`)。ID は `/dev/v4l/by-id` のリンク(挿し直しても同じ)、なければデバイス
 - カメラのデバイス: `DeviceId`、次に `Device`、指定がなければ形式が合う最初のデバイス。指定したデバイスは置き換えない
 - 形式はピクセル形式、サイズ、フレームレート(0.5 fps 以内)で照合。ピクセル形式は YUY2 と NV12、Linux は MJPEG も
@@ -72,7 +72,7 @@
 | `tools` | サービスの登録と削除(Windows は PowerShell、Linux はシェルと systemd のユニット) |
 
 - OS の API は各 Platform のみ。`AddWindowsPlatform()` と `AddLinuxPlatform()` で Core のインターフェースに登録
-- Host と Unit テストの対象は 2 つ: `net10.0-windows10.0.26100.0` は Platform.Windows、`net10.0` は Platform.Linux
+- Host と Unit テストの対象は 2 つ: `net11.0-windows10.0.26100.0` は Platform.Windows、`net11.0` は Platform.Linux
 
 ### 🛠️ サービス
 

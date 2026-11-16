@@ -27,15 +27,15 @@
 - Linux: systemd、ASP.NET Core 10 ランタイム(または自己完結型で発行)、USB カメラ(YUY2、NV12 または MJPEG)
   - パッケージ `libturbojpeg`(Ubuntu)または `libturbojpeg0`(Debian、Raspberry Pi OS)
   - H.264 なし: ライブは MJPEG
-- ビルドは .NET 10 SDK
+- ビルドは .NET 11 SDK
 
 ## ▶️ 試す
 
 ```
-dotnet run --project src/CameraService.Host -f net10.0-windows10.0.26100.0
+dotnet run --project src/CameraService.Host -f net11.0-windows10.0.26100.0
 ```
 
-- Linux は `-f net10.0`
+- Linux は `-f net11.0`
 
 - `http://localhost:5180`: カメラ一覧
 - `/api/devices`: カメラと形式(`Device` / `DeviceId` に使用)
@@ -47,7 +47,7 @@ dotnet run --project src/CameraService.Host -f net10.0-windows10.0.26100.0
 
 1. 発行
    ```
-   dotnet publish src/CameraService.Host -c Release -f net10.0-windows10.0.26100.0 -o C:\Services\CameraService
+   dotnet publish src/CameraService.Host -c Release -f net11.0-windows10.0.26100.0 -o C:\Services\CameraService
    ```
 2. 発行先の `appsettings.json` の `Cameras` を編集
 3. 登録して起動(管理者の PowerShell)
@@ -68,7 +68,7 @@ dotnet run --project src/CameraService.Host -f net10.0-windows10.0.26100.0
 
 1. 発行(Raspberry Pi は `linux-arm64`、ランタイムがなければ `--self-contained true`)
    ```
-   dotnet publish src/CameraService.Host -c Release -f net10.0 -r linux-x64 --self-contained false -o publish
+   dotnet publish src/CameraService.Host -c Release -f net11.0 -r linux-x64 --self-contained false -o publish
    ```
 2. 発行先の `appsettings.json` の `Cameras` を編集
 3. `/opt/camera-service` に配置し、登録して起動

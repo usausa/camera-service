@@ -8,7 +8,7 @@ The specifications of the cameras first, then those of the application. For inst
 
 ### 🔎 Devices and formats
 
-- Windows: a device counts as a camera when all its sources are color sources. It can have more than one (preview and record), the first is used. Infrared cameras and sensor groups do not count
+- Windows: a device counts as a camera when it has a color source and its other sources are color or custom sources. With more than one color source (preview and record), the first is used. Infrared cameras and sensor groups do not count
 - Linux: a video capture device (`/dev/video*`) with YUY2, NV12 or MJPEG. Its id is the link in `/dev/v4l/by-id` (the same after plugging in again), otherwise the device
 - The device of a camera: `DeviceId`, then `Device`, otherwise the first device with the format. A configured device is never replaced
 - A format matches by pixel format, size and frame rate (within 0.5 fps). Pixel formats: YUY2 and NV12, also MJPEG on Linux
@@ -72,7 +72,7 @@ The specifications of the cameras first, then those of the application. For inst
 | `tools` | Service registration and removal (Windows: PowerShell, Linux: shell and systemd unit) |
 
 - OS APIs are only in the platform projects. `AddWindowsPlatform()` and `AddLinuxPlatform()` register them for the Core interfaces
-- The Host and the unit tests have two targets: `net10.0-windows10.0.26100.0` with Platform.Windows, `net10.0` with Platform.Linux
+- The Host and the unit tests have two targets: `net11.0-windows10.0.26100.0` with Platform.Windows, `net11.0` with Platform.Linux
 
 ### 🛠️ Service
 

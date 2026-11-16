@@ -44,7 +44,7 @@ public static class SnapshotStorage
     // 6 digits of a valid time
     public static bool TryParseTime(string value, out TimeOnly time)
     {
-        if ((value.Length != TimeFormat.Length) || value.AsSpan().ContainsAnyExceptInRange('0', '9'))
+        if ((value.Length != TimeFormat.Length) || value.AsSpan().ContainsAnyExceptInRange('0', '9') || value.StartsWith("24", StringComparison.Ordinal))
         {
             time = default;
             return false;

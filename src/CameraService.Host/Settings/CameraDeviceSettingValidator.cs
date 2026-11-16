@@ -41,12 +41,22 @@ public sealed class CameraDeviceSettingValidator : IValidateOptions<List<CameraD
     // The folders as they are resolved for the saving: other forms of a path (.\front, front\, x/y, an absolute path) are the same folder
     private List<string> GetFolders(List<string> errors, List<CameraDeviceSetting> options)
     {
+        string storagePath;
+        try
+        {
+            storagePath = storage.Value.Path;
+        }
+        catch (OptionsValidationException)
+        {
+            return [];
+        }
+
         var folders = new List<string>();
         foreach (var camera in options)
         {
             try
             {
-                folders.Add(SnapshotStorage.GetCameraFolder(StorageSetting.BaseFolder, storage.Value.Path, camera.Snapshot.Path, camera.Id));
+                folders.Add(SnapshotStorage.GetCameraFolder(StorageSetting.BaseFolder, storagePath, camera.Snapshot.Path, camera.Id));
             }
             catch (ArgumentException ex)
             {
