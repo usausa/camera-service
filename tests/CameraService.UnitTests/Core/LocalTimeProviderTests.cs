@@ -10,7 +10,7 @@ public sealed class LocalTimeProviderTests
     private static readonly TimeZoneInfo Zone = TimeZoneInfo.CreateCustomTimeZone("Test", TimeSpan.FromHours(9), "Test", "Test");
 
     [Fact]
-    public void NowHasOffsetOfZone()
+    public void NowIsUtc()
     {
         // Arrange
         var provider = new LocalTimeProvider(new FixedTimeProvider(Now), Zone);
@@ -18,15 +18,14 @@ public sealed class LocalTimeProviderTests
         // Act
         var now = provider.GetUtcNow();
 
-        // Assert (the same instant)
+        // Assert
         Assert.Equal(Now, now);
-        Assert.Equal(TimeSpan.FromHours(9), now.Offset);
-        Assert.Equal(new DateTime(2026, 1, 1, 9, 0, 0, DateTimeKind.Unspecified), now.DateTime);
+        Assert.Equal(TimeSpan.Zero, now.Offset);
+        Assert.Same(Zone, provider.LocalTimeZone);
     }
 
-    // GetLocalNow of TimeProvider adds the offset of LocalTimeZone to the clock time of GetUtcNow
     [Fact]
-    public void LocalNowIsNotShiftedTwice()
+    public void LocalNowHasOffsetOfZone()
     {
         // Arrange
         var provider = new LocalTimeProvider(new FixedTimeProvider(Now), Zone);
@@ -36,6 +35,7 @@ public sealed class LocalTimeProviderTests
 
         // Assert
         Assert.Equal(Now, now);
+        Assert.Equal(TimeSpan.FromHours(9), now.Offset);
         Assert.Equal(new DateTime(2026, 1, 1, 9, 0, 0, DateTimeKind.Unspecified), now.DateTime);
     }
 
@@ -54,19 +54,31 @@ public sealed class LocalTimeProviderTests
     }
 
     [Fact]
-    public void CronRunsAtLocalTime()
+    public async Task CronRunsAtLocalTime()
     {
         // Arrange
-        var cron = CronExpression.Parse("0 3 * * *");
         var provider = new LocalTimeProvider(new FixedTimeProvider(Now), Zone);
+        var scheduler = new JobScheduler(provider);
+        try
+        {
+            var handle = scheduler.AddJob("0 3 * * *", new NopJob(), "test");
 
-        // Act
-        var local = cron.GetNextOccurrence(provider.GetUtcNow());
-        var utc = cron.GetNextOccurrence(Now);
+            // Act
+            await scheduler.StartAsync().ConfigureAwait(true);
 
-        // Assert (3:00 of the next day in the zone, while UTC gives 12:00 in the zone)
-        Assert.Equal(new DateTimeOffset(2026, 1, 2, 3, 0, 0, TimeSpan.FromHours(9)), local);
-        Assert.Equal(12, TimeZoneInfo.ConvertTime(utc!.Value, Zone).Hour);
+            // Assert
+            Assert.Equal(new DateTimeOffset(2026, 1, 2, 3, 0, 0, TimeSpan.FromHours(9)), handle.NextExecutionTime);
+            Assert.Equal(TimeSpan.FromHours(9), handle.NextExecutionTime?.Offset);
+        }
+        finally
+        {
+            await scheduler.DisposeAsync().ConfigureAwait(true);
+        }
+    }
+
+    private sealed class NopJob : ISchedulerJob
+    {
+        public ValueTask ExecuteAsync(DateTimeOffset time, CancellationToken cancellationToken) => ValueTask.CompletedTask;
     }
 
     private sealed class FixedTimeProvider : TimeProvider

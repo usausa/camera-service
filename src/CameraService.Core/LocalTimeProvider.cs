@@ -1,9 +1,5 @@
 namespace CameraService.Core;
 
-// Returns the current time in the offset of the local time zone from GetUtcNow (the same instant as UTC),
-// so that "0 3 * * *" runs at 3:00 of the local time.
-// LocalTimeZone is UTC, because GetLocalNow adds its offset to the clock time of GetUtcNow, which is the local time already.
-// Not registered as TimeProvider, other components expect UTC from it.
 public sealed class LocalTimeProvider : TimeProvider
 {
     private readonly TimeProvider source;
@@ -22,11 +18,11 @@ public sealed class LocalTimeProvider : TimeProvider
         Zone = zone;
     }
 
-    public override TimeZoneInfo LocalTimeZone => TimeZoneInfo.Utc;
+    public override TimeZoneInfo LocalTimeZone => Zone;
 
     public override long TimestampFrequency => source.TimestampFrequency;
 
-    public override DateTimeOffset GetUtcNow() => TimeZoneInfo.ConvertTime(source.GetUtcNow(), Zone);
+    public override DateTimeOffset GetUtcNow() => source.GetUtcNow();
 
     public override long GetTimestamp() => source.GetTimestamp();
 

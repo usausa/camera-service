@@ -133,7 +133,6 @@ public static class ApplicationExtensions
 #endif
 
         // Service
-        // Not registered as TimeProvider, other components expect UTC from it
         builder.Services.AddSingleton(static _ => new LocalTimeProvider());
         builder.Services.AddSingleton<CameraManager>();
         builder.Services.AddHostedService(static p => p.GetRequiredService<CameraManager>());
